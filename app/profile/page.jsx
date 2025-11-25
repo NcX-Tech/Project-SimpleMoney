@@ -1,12 +1,15 @@
 "use client";
 
-import React from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Phone, Shield, Target, Coins, Trophy, LogOut } from "lucide-react";
+import { ArrowLeft, Phone, Shield, Target, Coins, Trophy, LogOut, Edit2, Save, X, Camera } from "lucide-react";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { SuccessModal } from "@/components/ui/SuccessModal";
 import { soundManager } from "@/lib/sounds";
 
 /**
@@ -47,11 +50,62 @@ const formatDate = (dateString) => {
  * Exibe informações do usuário, pontos, conquistas e opções de contato
  * Prioriza experiência desktop mas mantém responsividade mobile
  */
+/**
+ * Formata telefone para input (XX) XXXXX-XXXX
+ */
+const formatPhoneInput = (value) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers === "") return "";
+  
+  if (numbers.length <= 2) {
+    return `(${numbers}`;
+  } else if (numbers.length <= 7) {
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
+  } else {
+    return `(${numbers.slice(0, 2)}) ${numbers.slice(2, 7)}-${numbers.slice(7, 11)}`;
+  }
+};
+
+/**
+ * Remove formatação do telefone
+ */
+const parsePhoneValue = (formattedPhone) => {
+  return formattedPhone.replace(/\D/g, "");
+};
+
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, logout } = useAuthStore();
+  const { user, logout, updateProfile } = useAuthStore();
   const { points, achievements, getNotificationCount } = useProfileStore();
   const notificationCount = getNotificationCount();
+  
+  // Estados do modo de edição
+  const [isEditing, setIsEditing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const fileInputRef = useRef(null);
+  
+  // Estados do formulário
+  const [formData, setFormData] = useState({
+    name: user?.name || "",
+    email: user?.email || "",
+    phone: user?.phone || "",
+    photo: user?.photo || null,
+  });
+  
+  const [errors, setErrors] = useState({});
+
+  // Sincroniza formData quando o user mudar
+  useEffect(() => {
+    if (user && !isEditing) {
+      setFormData({
+        name: user.name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        photo: user.photo || null,
+      });
+    }
+  }, [user, isEditing]);
 
   /**
    * Função para fazer logout
@@ -78,9 +132,147 @@ export default function ProfilePage() {
     router.push("/profile/terms");
   };
 
+  /**
+   * Inicia o modo de edição
+   */
+  const handleStartEdit = () => {
+    soundManager.playClick();
+    setFormData({
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      photo: user?.photo || null,
+    });
+    setErrors({});
+    setIsEditing(true);
+  };
+
+  /**
+   * Cancela a edição
+   */
+  const handleCancelEdit = () => {
+    soundManager.playClick();
+    setIsEditing(false);
+    setFormData({
+      name: user?.name || "",
+      email: user?.email || "",
+      phone: user?.phone || "",
+      photo: user?.photo || null,
+    });
+    setErrors({});
+  };
+
+  /**
+   * Valida o formulário
+   */
+  const validateForm = () => {
+    const newErrors = {};
+
+    if (!formData.name.trim()) {
+      newErrors.name = "Nome é obrigatório";
+    }
+
+    if (!formData.email.trim()) {
+      newErrors.email = "Email é obrigatório";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+      newErrors.email = "Email inválido";
+    }
+
+    if (formData.phone && formData.phone.length > 0) {
+      const phoneNumbers = parsePhoneValue(formData.phone);
+      if (phoneNumbers.length < 10) {
+        newErrors.phone = "Telefone inválido";
+      }
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  /**
+   * Salva as alterações do perfil
+   */
+  const handleSaveProfile = async () => {
+    soundManager.playClick();
+
+    if (!validateForm()) {
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await updateProfile({
+        name: formData.name.trim(),
+        email: formData.email.trim(),
+        phone: formData.phone ? parsePhoneValue(formData.phone) : "",
+        photo: formData.photo,
+      });
+
+      setIsEditing(false);
+      setIsSuccessModalOpen(true);
+      soundManager.playSuccess();
+    } catch (error) {
+      console.error("Erro ao salvar perfil:", error);
+      setErrors({ general: "Erro ao salvar perfil. Tente novamente." });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  /**
+   * Manipula o upload de foto
+   */
+  const handlePhotoChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Valida o tipo de arquivo
+    if (!file.type.startsWith("image/")) {
+      setErrors({ photo: "Por favor, selecione uma imagem válida" });
+      return;
+    }
+
+    // Valida o tamanho (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setErrors({ photo: "A imagem deve ter no máximo 5MB" });
+      return;
+    }
+
+    // Converte para base64
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      setFormData((prev) => ({
+        ...prev,
+        photo: reader.result,
+      }));
+      setErrors((prev) => ({ ...prev, photo: null }));
+    };
+    reader.onerror = () => {
+      setErrors({ photo: "Erro ao carregar a imagem" });
+    };
+    reader.readAsDataURL(file);
+  };
+
+  /**
+   * Remove a foto
+   */
+  const handleRemovePhoto = () => {
+    soundManager.playClick();
+    setFormData((prev) => ({
+      ...prev,
+      photo: null,
+    }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  };
+
   // Obtém o nome completo ou padrão
   const userName = user?.name || "Usuário";
   const userEmail = user?.email || "usuario@email.com";
+  const userPhone = user?.phone || "";
+  const userPhoto = user?.photo || null;
   const initials = getInitials(userName);
 
   return (
@@ -113,11 +305,55 @@ export default function ProfilePage() {
             <div className="flex flex-col md:flex-row items-center md:items-start gap-6">
               {/* Avatar com badge */}
               <div className="relative">
-                <div className="w-24 h-24 md:w-32 md:h-32 rounded-full bg-primary-500 flex items-center justify-center text-white text-2xl md:text-3xl font-bold">
-                  {initials}
-                </div>
+                {isEditing ? (
+                  <div className="relative">
+                    <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-primary-500 flex items-center justify-center text-white text-2xl md:text-3xl font-bold">
+                      {formData.photo ? (
+                        <img
+                          src={formData.photo}
+                          alt="Foto do perfil"
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        initials
+                      )}
+                    </div>
+                    {/* Botão de editar foto */}
+                    <label className="absolute bottom-0 right-0 w-8 h-8 md:w-10 md:h-10 bg-primary-500 rounded-full flex items-center justify-center cursor-pointer hover:bg-primary-600 transition-colors border-2 border-white dark:border-gray-800">
+                      <Camera className="w-4 h-4 md:w-5 md:h-5 text-white" />
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*"
+                        onChange={handlePhotoChange}
+                        className="hidden"
+                      />
+                    </label>
+                    {formData.photo && (
+                      <button
+                        onClick={handleRemovePhoto}
+                        className="absolute -top-2 -right-2 w-6 h-6 bg-red-500 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"
+                        title="Remover foto"
+                      >
+                        <X className="w-4 h-4 text-white" />
+                      </button>
+                    )}
+                  </div>
+                ) : (
+                  <div className="w-24 h-24 md:w-32 md:h-32 rounded-full overflow-hidden bg-primary-500 flex items-center justify-center text-white text-2xl md:text-3xl font-bold">
+                    {userPhoto ? (
+                      <img
+                        src={userPhoto}
+                        alt="Foto do perfil"
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      initials
+                    )}
+                  </div>
+                )}
                 {/* Badge de notificações */}
-                {notificationCount > 0 && (
+                {!isEditing && notificationCount > 0 && (
                   <div className="absolute -bottom-1 -right-1 w-8 h-8 md:w-10 md:h-10 bg-orange-500 rounded-full flex items-center justify-center text-white text-xs md:text-sm font-bold border-4 border-white dark:border-gray-800">
                     {notificationCount}
                   </div>
@@ -125,18 +361,116 @@ export default function ProfilePage() {
               </div>
 
               {/* Informações do usuário */}
-              <div className="flex-1 text-center md:text-left">
-                <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white mb-2">
-                  {userName}
-                </h2>
-                <p className="text-gray-600 dark:text-gray-400 mb-4">{userEmail}</p>
+              <div className="flex-1 w-full">
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div>
+                      <Input
+                        label="Nome"
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, name: e.target.value }));
+                          if (errors.name) {
+                            setErrors((prev) => ({ ...prev, name: null }));
+                          }
+                        }}
+                        error={errors.name}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        label="Email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => {
+                          setFormData((prev) => ({ ...prev, email: e.target.value }));
+                          if (errors.email) {
+                            setErrors((prev) => ({ ...prev, email: null }));
+                          }
+                        }}
+                        error={errors.email}
+                        className="w-full"
+                      />
+                    </div>
+                    <div>
+                      <Input
+                        label="Telefone"
+                        type="text"
+                        value={formData.phone}
+                        onChange={(e) => {
+                          const formatted = formatPhoneInput(e.target.value);
+                          setFormData((prev) => ({ ...prev, phone: formatted }));
+                          if (errors.phone) {
+                            setErrors((prev) => ({ ...prev, phone: null }));
+                          }
+                        }}
+                        placeholder="(00) 00000-0000"
+                        error={errors.phone}
+                        className="w-full"
+                        maxLength={15}
+                      />
+                    </div>
+                    {errors.photo && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {errors.photo}
+                      </p>
+                    )}
+                    {errors.general && (
+                      <p className="text-sm text-red-600 dark:text-red-400">
+                        {errors.general}
+                      </p>
+                    )}
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={handleSaveProfile}
+                        variant="primary"
+                        isLoading={isSaving}
+                        className="flex-1"
+                      >
+                        <Save className="w-4 h-4 mr-2" />
+                        Salvar
+                      </Button>
+                      <Button
+                        onClick={handleCancelEdit}
+                        variant="secondary"
+                        className="flex-1"
+                      >
+                        <X className="w-4 h-4 mr-2" />
+                        Cancelar
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="text-center md:text-left">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white">
+                        {userName}
+                      </h2>
+                      <button
+                        onClick={handleStartEdit}
+                        className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
+                        title="Editar perfil"
+                      >
+                        <Edit2 className="w-5 h-5 text-gray-600 dark:text-gray-400" />
+                      </button>
+                    </div>
+                    <p className="text-gray-600 dark:text-gray-400 mb-2">{userEmail}</p>
+                    {userPhone && (
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        {formatPhoneInput(userPhone)}
+                      </p>
+                    )}
 
-                {/* Botão de pontos */}
-                <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900/30 rounded-full">
-                  <span className="text-primary-700 dark:text-primary-300 font-semibold">
-                    {points} pontos
-                  </span>
-                </div>
+                    {/* Botão de pontos */}
+                    <div className="inline-flex items-center px-4 py-2 bg-primary-100 dark:bg-primary-900/30 rounded-full">
+                      <span className="text-primary-700 dark:text-primary-300 font-semibold">
+                        {points} pontos
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </Card>
@@ -230,6 +564,22 @@ export default function ProfilePage() {
           </Card>
         </main>
       </div>
+
+      {/* Modal de Sucesso */}
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => {
+          soundManager.playClick();
+          setIsSuccessModalOpen(false);
+        }}
+        onAction={() => {
+          soundManager.playClick();
+          setIsSuccessModalOpen(false);
+        }}
+        title="Perfil atualizado!"
+        message="Suas informações foram salvas com sucesso."
+        actionText="OK"
+      />
     </div>
   );
 }
