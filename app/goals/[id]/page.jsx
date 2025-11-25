@@ -9,8 +9,9 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { SuccessModal } from "@/components/ui/SuccessModal";
-import { useGoalsStore } from "@/lib/store";
+import { useGoalsStore, useDashboardStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
+import { AlertCircle, X } from "lucide-react";
 
 /**
  * Página de Detalhes da Meta
@@ -23,13 +24,17 @@ export default function GoalDetailsPage() {
   const goalId = params.id;
   
   const { getGoalById, addIncomeToGoal } = useGoalsStore();
+  const { balance } = useDashboardStore();
   const [goal, setGoal] = useState(null);
   const [incomeAmount, setIncomeAmount] = useState("");
   const [errors, setErrors] = useState({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successMessage, setSuccessMessage] = useState("");
 
-  // Carrega a meta ao montar o componente
+  // Carrega a meta ao montar o componente e sempre que o goalId mudar
   useEffect(() => {
     if (!goalId) return;
     
@@ -40,7 +45,7 @@ export default function GoalDetailsPage() {
       return;
     }
     setGoal(foundGoal);
-  }, [goalId]);
+  }, [goalId, getGoalById]);
 
   /**
    * Formata valor monetário para input (R$ 0,00)
@@ -107,6 +112,10 @@ export default function GoalDetailsPage() {
       if (amount > remaining) {
         newErrors.amount = `Valor máximo: ${formatCurrency(remaining)}`;
       }
+      // Verifica se há saldo suficiente
+      if (amount > balance) {
+        newErrors.amount = `Saldo insuficiente! Você tem ${formatCurrency(balance)} mas precisa de ${formatCurrency(amount)}`;
+      }
     }
 
     setErrors(newErrors);
@@ -115,6 +124,7 @@ export default function GoalDetailsPage() {
 
   /**
    * Adiciona receita à meta
+   * Verifica saldo e debita do saldo atual
    */
   const handleAddIncome = async (e) => {
     e.preventDefault();
@@ -131,23 +141,38 @@ export default function GoalDetailsPage() {
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       const amount = parseCurrencyValue(incomeAmount);
-      const newValue = addIncomeToGoal(goalId, amount);
+      
+      // Adiciona a receita à meta (agora debita do saldo)
+      const result = addIncomeToGoal(goalId, amount);
 
-      // Atualiza a meta localmente
-      setGoal((prev) => ({
-        ...prev,
-        currentValue: newValue,
-      }));
+      if (result.success) {
+        // Sucesso - recarrega a meta para obter valores atualizados
+        const updatedGoal = getGoalById(goalId);
+        if (updatedGoal) {
+          setGoal(updatedGoal);
+        }
 
-      // Limpa o formulário
-      setIncomeAmount("");
-      setErrors({});
+        // Limpa o formulário
+        setIncomeAmount("");
+        setErrors({});
 
-      // Abre modal de sucesso
-      setIsSuccessModalOpen(true);
+        // Define mensagem de sucesso
+        setSuccessMessage(result.message);
+
+        // Abre modal de sucesso
+        setIsSuccessModalOpen(true);
+        soundManager.playSuccess();
+      } else {
+        // Erro - mostra mensagem de erro
+        setErrorMessage(result.message);
+        setIsErrorModalOpen(true);
+        soundManager.playError();
+      }
     } catch (error) {
       console.error("Erro ao adicionar receita:", error);
-      setErrors({ amount: "Erro ao adicionar receita. Tente novamente." });
+      setErrorMessage("Erro ao processar a operação. Tente novamente.");
+      setIsErrorModalOpen(true);
+      soundManager.playError();
     } finally {
       setIsLoading(false);
     }
@@ -287,9 +312,31 @@ export default function GoalDetailsPage() {
                 <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                   Adicionar Receita
                 </h3>
-                <p className="text-sm text-gray-600 dark:text-gray-400">
+                <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                   Adicione um valor para aumentar o progresso desta meta
                 </p>
+                {/* Informação de saldo */}
+                <div className={`p-3 rounded-lg mb-4 ${
+                  balance >= parseCurrencyValue(incomeAmount) || !incomeAmount
+                    ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                    : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                }`}>
+                  <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                    Saldo disponível:{" "}
+                    <span className={`font-bold ${
+                      balance >= parseCurrencyValue(incomeAmount) || !incomeAmount
+                        ? "text-green-600 dark:text-green-400"
+                        : "text-red-600 dark:text-red-400"
+                    }`}>
+                      {formatCurrency(balance)}
+                    </span>
+                  </p>
+                  {incomeAmount && parseCurrencyValue(incomeAmount) > balance && (
+                    <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                      ⚠️ Saldo insuficiente! Adicione saldo na tela de Desafios ou Home.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <form onSubmit={handleAddIncome} className="space-y-4">
@@ -340,10 +387,61 @@ export default function GoalDetailsPage() {
           soundManager.playClick();
           setIsSuccessModalOpen(false);
         }}
-        title="Receita adicionada com sucesso!"
-        message="O progresso da meta foi atualizado"
+        onAction={() => {
+          soundManager.playClick();
+          setIsSuccessModalOpen(false);
+        }}
+        title="Sucesso!"
+        message={successMessage || "O progresso da meta foi atualizado"}
         actionText="OK"
       />
+
+      {/* Modal de Erro */}
+      {isErrorModalOpen && (
+        <>
+          {/* Overlay com blur */}
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick();
+              setIsErrorModalOpen(false);
+            }}
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              {/* Ícone de alerta */}
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mr-3 bg-red-100 dark:bg-red-900/30">
+                  <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Atenção!
+                </h2>
+              </div>
+
+              {/* Mensagem */}
+              <p className="text-gray-600 dark:text-gray-300 mb-6 ml-15">
+                {errorMessage}
+              </p>
+
+              {/* Botão */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsErrorModalOpen(false);
+                  }}
+                  className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  OK
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

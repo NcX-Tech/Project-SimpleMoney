@@ -7,7 +7,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { SuccessModal } from "@/components/ui/SuccessModal";
-import { useDashboardStore, useProfileStore } from "@/lib/store";
+import { useDashboardStore, useProfileStore, useTransactionsStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
 import {
   Trophy,
@@ -62,6 +62,7 @@ export default function ChallengesPage() {
     useDashboardStore();
   const { points, achievements, addPoints, addAchievement } =
     useProfileStore();
+  const { addTransaction } = useTransactionsStore();
 
   // Estados do modal de adicionar saldo
   const [isAddBalanceModalOpen, setIsAddBalanceModalOpen] = useState(false);
@@ -163,9 +164,18 @@ export default function ChallengesPage() {
       // Simula delay de API
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Adiciona ao saldo atual
-      const newBalance = balance + amount;
-      updateBalance(newBalance);
+      // Cria uma transação de receita para o saldo adicionado
+      // Isso garante que o saldo seja calculado corretamente
+      addTransaction({
+        name: 'Saldo Adicionado',
+        value: amount,
+        type: 'income',
+        category: 'Outros',
+        date: new Date().toISOString(),
+      });
+
+      // O saldo será atualizado automaticamente pela função addTransaction
+      // que chama calculateBalance() e updateBalance()
 
       // Adiciona pontos de recompensa (1 ponto para cada R$ 1,00)
       const pointsToAdd = Math.floor(amount);

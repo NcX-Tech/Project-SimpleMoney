@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { useAuthStore, useDashboardStore, useGoalsStore, useTransactionsStore } from '@/lib/store'
+import { useAuthStore, useDashboardStore, useGoalsStore, useTransactionsStore, useProfileStore } from '@/lib/store'
 import { Header } from '@/components/layout/Header'
 import { Navigation } from '@/components/layout/Navigation'
 import { Card } from '@/components/ui/Card'
@@ -43,7 +43,7 @@ export default function HomePage() {
   const { user } = useAuthStore()
   const { balance, transactionsCount, dailyChallenge, updateBalance } = useDashboardStore()
   const { calculateOverallProgress } = useGoalsStore()
-  const { calculateBalance, transactions } = useTransactionsStore()
+  const { calculateBalance, transactions, addTransaction } = useTransactionsStore()
   const { addPoints } = useProfileStore()
   
   // Estados do modal de adicionar saldo
@@ -58,13 +58,21 @@ export default function HomePage() {
   
   // Sincroniza o saldo do dashboard com as transações
   // Calcula o saldo baseado nas transações e atualiza o dashboard
+  // Nota: O saldo é atualizado automaticamente quando:
+  // - Transações são adicionadas/removidas (através de addTransaction/removeTransaction)
+  // - Receita é adicionada à meta (debita do saldo através de addIncomeToGoal)
+  // Este useEffect serve apenas como backup para sincronização quando transações mudam
+  // O saldo do store é a fonte única da verdade e será atualizado automaticamente
   useEffect(() => {
+    // Recalcula o saldo apenas quando transações mudam
+    // Não sobrescreve se o saldo foi atualizado manualmente (ex: ao adicionar à meta)
     const newBalance = calculateBalance()
-    // Atualiza apenas se houver diferença significativa (evita loops infinitos)
-    if (Math.abs(newBalance - balance) > 0.01) {
+    // Atualiza apenas se o novo saldo calculado for diferente E maior que o atual
+    // Isso evita sobrescrever quando o saldo foi debitado manualmente
+    if (Math.abs(newBalance - balance) > 0.01 && newBalance > balance) {
       updateBalance(newBalance)
     }
-  }, [transactions.length, calculateBalance, balance, updateBalance])
+  }, [transactions.length, calculateBalance])
 
   /**
    * Adiciona saldo ao saldo atual
@@ -82,9 +90,18 @@ export default function HomePage() {
       // Simula delay de API
       await new Promise((resolve) => setTimeout(resolve, 500))
 
-      // Adiciona ao saldo atual
-      const newBalance = balance + amount
-      updateBalance(newBalance)
+      // Cria uma transação de receita para o saldo adicionado
+      // Isso garante que o saldo seja calculado corretamente
+      addTransaction({
+        name: 'Saldo Adicionado',
+        value: amount,
+        type: 'income',
+        category: 'Outros',
+        date: new Date().toISOString(),
+      })
+
+      // O saldo será atualizado automaticamente pela função addTransaction
+      // que chama calculateBalance() e updateBalance()
 
       // Adiciona pontos de recompensa (1 ponto para cada R$ 1,00)
       const pointsToAdd = Math.floor(amount)
