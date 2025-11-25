@@ -3,7 +3,7 @@
 import React, { useState } from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, Target, List, Trophy, User, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Home, Target, List, Trophy, User, ChevronLeft, ChevronRight, BarChart3 } from 'lucide-react'
 import { soundManager } from '@/lib/sounds'
 
 /**
@@ -19,6 +19,7 @@ export const Navigation = () => {
     { href: '/home', icon: Home, label: 'Home' },
     { href: '/goals', icon: Target, label: 'Metas' },
     { href: '/transactions', icon: List, label: 'Transações' },
+    { href: '/summary', icon: BarChart3, label: 'Resumo e Balanço' },
     { href: '/challenges', icon: Trophy, label: 'Desafios' },
     { href: '/profile', icon: User, label: 'Perfil' },
   ]
@@ -30,7 +31,9 @@ export const Navigation = () => {
         <div className="flex justify-around items-center h-16">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href || (item.href === '/goals' && pathname?.startsWith('/goals'))
+            const isActive = pathname === item.href || 
+              (item.href === '/goals' && pathname?.startsWith('/goals')) ||
+              (item.href === '/summary' && pathname?.startsWith('/summary'))
 
             return (
               <Link
@@ -77,7 +80,9 @@ export const Navigation = () => {
         <div className="flex-1 py-4 space-y-2 overflow-y-auto">
           {navItems.map((item) => {
             const Icon = item.icon
-            const isActive = pathname === item.href
+            const isActive = pathname === item.href || 
+              (item.href === '/goals' && pathname?.startsWith('/goals')) ||
+              (item.href === '/summary' && pathname?.startsWith('/summary'))
 
             return (
               <Link

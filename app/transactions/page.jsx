@@ -21,9 +21,11 @@ import {
 import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
 import { Card } from "@/components/ui/Card";
-import { useTransactionsStore, useGoalsStore } from "@/lib/store";
+import { Input } from "@/components/ui/Input";
+import { SuccessModal } from "@/components/ui/SuccessModal";
+import { useTransactionsStore, useGoalsStore, useDashboardStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
-import { Target, X } from "lucide-react";
+import { Target, X, Calendar, AlertCircle } from "lucide-react";
 
 /**
  * Mapeamento de ícones por categoria
@@ -74,24 +76,61 @@ const formatDate = (dateString) => {
 };
 
 /**
+ * Formata data para input (DD/MM/AAAA)
+ */
+const formatDateInput = (value) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers === "") return "";
+  const limited = numbers.slice(0, 8);
+  if (limited.length <= 2) {
+    return limited;
+  } else if (limited.length <= 4) {
+    return `${limited.slice(0, 2)}/${limited.slice(2)}`;
+  } else {
+    return `${limited.slice(0, 2)}/${limited.slice(2, 4)}/${limited.slice(4)}`;
+  }
+};
+
+/**
+ * Converte data formatada (DD/MM/AAAA) para ISO string
+ */
+const parseDateValue = (formattedDate) => {
+  const numbers = formattedDate.replace(/\D/g, "");
+  if (numbers.length !== 8) return null;
+  const day = numbers.slice(0, 2);
+  const month = numbers.slice(2, 4);
+  const year = numbers.slice(4, 8);
+  const date = new Date(`${year}-${month}-${day}`);
+  if (isNaN(date.getTime())) return null;
+  return date.toISOString();
+};
+
+/**
  * Página de Transações
  * Exibe lista de transações com filtros por tipo e categoria
  * Prioriza experiência desktop mas mantém responsividade mobile
  */
 export default function TransactionsPage() {
   const router = useRouter();
-  const { getFilteredTransactions, getCategories } = useTransactionsStore();
+  const { getTransactionsByPeriod, getCategories } = useTransactionsStore();
   const { goals, addIncomeToGoal } = useGoalsStore();
 
   // Estados dos filtros
   const [typeFilter, setTypeFilter] = useState("all"); // 'all', 'income', 'expense'
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
 
   // Estados do modal de adicionar receita à meta
   const [isAddToGoalModalOpen, setIsAddToGoalModalOpen] = useState(false);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [selectedGoalId, setSelectedGoalId] = useState("");
   const [isAddingToGoal, setIsAddingToGoal] = useState(false);
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isErrorModalOpen, setIsErrorModalOpen] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
+  const [errorMessage, setErrorMessage] = useState("");
+  const { balance } = useDashboardStore();
 
   // Obtém todas as categorias disponíveis
   const categories = useMemo(() => {
@@ -99,10 +138,12 @@ export default function TransactionsPage() {
     return ["all", ...allCategories];
   }, [getCategories]);
 
-  // Obtém transações filtradas
+  // Obtém transações filtradas (incluindo período)
   const transactions = useMemo(() => {
-    return getFilteredTransactions(typeFilter, categoryFilter);
-  }, [typeFilter, categoryFilter, getFilteredTransactions]);
+    const start = startDate ? parseDateValue(startDate) : null;
+    const end = endDate ? parseDateValue(endDate) : null;
+    return getTransactionsByPeriod(start, end, typeFilter, categoryFilter);
+  }, [startDate, endDate, typeFilter, categoryFilter, getTransactionsByPeriod]);
 
   /**
    * Alterna o filtro de tipo de transação
@@ -157,6 +198,7 @@ export default function TransactionsPage() {
 
   /**
    * Adiciona receita à meta selecionada
+   * Verifica saldo e debita do saldo atual
    */
   const handleConfirmAddToGoal = async () => {
     if (!selectedGoalId || !selectedTransaction) {
@@ -170,14 +212,26 @@ export default function TransactionsPage() {
       // Simula delay de API
       await new Promise((resolve) => setTimeout(resolve, 500));
 
-      // Adiciona a receita à meta
-      addIncomeToGoal(selectedGoalId, selectedTransaction.value);
+      // Adiciona a receita à meta (agora debita do saldo)
+      const result = addIncomeToGoal(selectedGoalId, selectedTransaction.value);
 
-      // Fecha o modal e mostra sucesso
-      handleCloseModal();
-      soundManager.playSuccess();
+      if (result.success) {
+        // Sucesso - fecha o modal e mostra mensagem de sucesso
+        handleCloseModal();
+        setSuccessMessage(result.message);
+        setIsSuccessModalOpen(true);
+        soundManager.playSuccess();
+      } else {
+        // Erro - mostra mensagem de erro
+        setErrorMessage(result.message);
+        setIsErrorModalOpen(true);
+        soundManager.playError();
+      }
     } catch (error) {
       console.error("Erro ao adicionar receita à meta:", error);
+      setErrorMessage("Erro ao processar a operação. Tente novamente.");
+      setIsErrorModalOpen(true);
+      soundManager.playError();
     } finally {
       setIsAddingToGoal(false);
     }
@@ -195,6 +249,63 @@ export default function TransactionsPage() {
 
         {/* Conteúdo da página - Layout otimizado para desktop */}
         <main className="flex-1 p-4 md:p-6 lg:p-8 xl:p-10 max-w-7xl mx-auto w-full">
+          {/* Filtros de Período */}
+          <Card className="mb-6 md:mb-8 p-4 md:p-6">
+            <h3 className="text-base md:text-lg font-semibold text-gray-900 dark:text-white mb-4">
+              Filtrar por Período
+            </h3>
+            <div className="flex flex-col md:flex-row md:items-end gap-4">
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Data Inicial
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    value={startDate}
+                    onChange={(e) => {
+                      const formatted = formatDateInput(e.target.value);
+                      setStartDate(formatted);
+                    }}
+                    placeholder="DD/MM/AAAA"
+                    maxLength={10}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <div className="flex-1">
+                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
+                  Data Final
+                </label>
+                <div className="relative">
+                  <Calendar className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input
+                    type="text"
+                    value={endDate}
+                    onChange={(e) => {
+                      const formatted = formatDateInput(e.target.value);
+                      setEndDate(formatted);
+                    }}
+                    placeholder="DD/MM/AAAA"
+                    maxLength={10}
+                    className="pl-10"
+                  />
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setStartDate("");
+                  setEndDate("");
+                }}
+                className="px-4 md:px-6 py-2 md:py-3 bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors font-medium"
+              >
+                Limpar
+              </button>
+            </div>
+          </Card>
+
           {/* Filtros de Tipo de Transação - Layout desktop otimizado */}
           <div className="mb-6 md:mb-8">
             <div className="flex flex-wrap gap-3 md:gap-4 lg:gap-5">
@@ -387,12 +498,34 @@ export default function TransactionsPage() {
                   <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                     Adicionar à Meta
                   </h2>
-                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                     Selecione uma meta para adicionar{" "}
                     <span className="font-semibold text-green-600 dark:text-green-400">
                       {formatCurrency(selectedTransaction.value)}
                     </span>
                   </p>
+                  {/* Informação de saldo */}
+                  <div className={`p-3 rounded-lg ${
+                    balance >= selectedTransaction.value
+                      ? "bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800"
+                      : "bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800"
+                  }`}>
+                    <p className="text-xs font-medium text-gray-700 dark:text-gray-300">
+                      Saldo disponível:{" "}
+                      <span className={`font-bold ${
+                        balance >= selectedTransaction.value
+                          ? "text-green-600 dark:text-green-400"
+                          : "text-red-600 dark:text-red-400"
+                      }`}>
+                        {formatCurrency(balance)}
+                      </span>
+                    </p>
+                    {balance < selectedTransaction.value && (
+                      <p className="text-xs text-red-600 dark:text-red-400 mt-1">
+                        ⚠️ Saldo insuficiente! Adicione saldo na tela de Desafios ou Home.
+                      </p>
+                    )}
+                  </div>
                 </div>
 
                 {/* Lista de metas */}
@@ -459,6 +592,69 @@ export default function TransactionsPage() {
                   className="w-full px-6 py-3 bg-primary-500 hover:bg-primary-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors"
                 >
                   {isAddingToGoal ? "Adicionando..." : "Confirmar"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de Sucesso */}
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => {
+          soundManager.playClick();
+          setIsSuccessModalOpen(false);
+        }}
+        onAction={() => {
+          soundManager.playClick();
+          setIsSuccessModalOpen(false);
+        }}
+        title="Sucesso!"
+        message={successMessage}
+        actionText="OK"
+      />
+
+      {/* Modal de Erro */}
+      {isErrorModalOpen && (
+        <>
+          {/* Overlay com blur */}
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick();
+              setIsErrorModalOpen(false);
+            }}
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              {/* Ícone de alerta */}
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mr-3 bg-red-100 dark:bg-red-900/30">
+                  <AlertCircle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Atenção!
+                </h2>
+              </div>
+
+              {/* Mensagem */}
+              <p className="text-gray-600 dark:text-gray-300 mb-6 ml-15">
+                {errorMessage}
+              </p>
+
+              {/* Botão */}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsErrorModalOpen(false);
+                  }}
+                  className="px-6 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors"
+                >
+                  OK
                 </button>
               </div>
             </div>

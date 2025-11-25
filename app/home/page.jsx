@@ -6,19 +6,52 @@ import { Header } from '@/components/layout/Header'
 import { Navigation } from '@/components/layout/Navigation'
 import { Card } from '@/components/ui/Card'
 import { CircularProgress } from '@/components/ui/CircularProgress'
-import { ArrowRight } from 'lucide-react'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { SuccessModal } from '@/components/ui/SuccessModal'
+import { ArrowRight, Plus, Wallet } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
+import { soundManager } from '@/lib/sounds'
 
 /**
  * Página Home/Dashboard
  * Exibe informações financeiras, metas, transações e desafios
  * Prioriza experiência desktop mas mantém responsividade mobile
  */
+/**
+ * Formata valor monetário para input (R$ 0,00)
+ */
+const formatCurrencyInput = (value) => {
+  const numbers = value.replace(/\D/g, '')
+  if (numbers === '') return ''
+  const cents = parseInt(numbers, 10)
+  const reais = (cents / 100).toFixed(2)
+  return `R$ ${reais.replace('.', ',')}`
+}
+
+/**
+ * Converte valor formatado (R$ 0,00) para número
+ */
+const parseCurrencyValue = (formattedValue) => {
+  const numbers = formattedValue.replace(/\D/g, '')
+  if (numbers === '') return 0
+  return parseFloat((parseInt(numbers, 10) / 100).toFixed(2))
+}
+
 export default function HomePage() {
   const { user } = useAuthStore()
   const { balance, transactionsCount, dailyChallenge, updateBalance } = useDashboardStore()
   const { calculateOverallProgress } = useGoalsStore()
   const { calculateBalance, transactions } = useTransactionsStore()
+  const { addPoints } = useProfileStore()
+  
+  // Estados do modal de adicionar saldo
+  const [isAddBalanceModalOpen, setIsAddBalanceModalOpen] = useState(false)
+  const [balanceAmount, setBalanceAmount] = useState('')
+  const [isAddingBalance, setIsAddingBalance] = useState(false)
+  const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
   
   // Calcula o progresso geral das metas
   const goalsProgress = calculateOverallProgress()
@@ -32,6 +65,45 @@ export default function HomePage() {
       updateBalance(newBalance)
     }
   }, [transactions.length, calculateBalance, balance, updateBalance])
+
+  /**
+   * Adiciona saldo ao saldo atual
+   */
+  const handleAddBalance = async () => {
+    const amount = parseCurrencyValue(balanceAmount)
+    if (amount <= 0) {
+      return
+    }
+
+    soundManager.playClick()
+    setIsAddingBalance(true)
+
+    try {
+      // Simula delay de API
+      await new Promise((resolve) => setTimeout(resolve, 500))
+
+      // Adiciona ao saldo atual
+      const newBalance = balance + amount
+      updateBalance(newBalance)
+
+      // Adiciona pontos de recompensa (1 ponto para cada R$ 1,00)
+      const pointsToAdd = Math.floor(amount)
+      addPoints(pointsToAdd)
+
+      setSuccessMessage(
+        `Saldo de R$ ${amount.toFixed(2).replace('.', ',')} adicionado com sucesso! +${pointsToAdd} pontos!`
+      )
+
+      setIsAddBalanceModalOpen(false)
+      setBalanceAmount('')
+      setIsSuccessModalOpen(true)
+      soundManager.playSuccess()
+    } catch (error) {
+      console.error('Erro ao adicionar saldo:', error)
+    } finally {
+      setIsAddingBalance(false)
+    }
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -54,11 +126,24 @@ export default function HomePage() {
 
           {/* Card de Saldo */}
           <Card variant="balance" className="mb-6 dark:bg-primary-600">
-            <div className="space-y-2">
-              <p className="text-white/90 text-sm md:text-base">Seu saldo</p>
-              <p className="text-white text-3xl md:text-4xl font-bold">
-                R$ {balance.toFixed(2).replace('.', ',')}
-              </p>
+            <div className="flex items-center justify-between">
+              <div className="space-y-2">
+                <p className="text-white/90 text-sm md:text-base">Seu saldo</p>
+                <p className="text-white text-3xl md:text-4xl font-bold">
+                  R$ {balance.toFixed(2).replace('.', ',')}
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  soundManager.playClick()
+                  setIsAddBalanceModalOpen(true)
+                }}
+                className="p-3 md:p-4 bg-white/20 hover:bg-white/30 rounded-full transition-colors"
+                aria-label="Adicionar saldo"
+                title="Adicionar saldo"
+              >
+                <Plus className="w-6 h-6 md:w-8 md:h-8 text-white" />
+              </button>
             </div>
           </Card>
 
@@ -135,6 +220,86 @@ export default function HomePage() {
           </Card>
         </main>
       </div>
+
+      {/* Modal de Adicionar Saldo */}
+      {isAddBalanceModalOpen && (
+        <>
+          {/* Overlay com blur */}
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick()
+              setIsAddBalanceModalOpen(false)
+              setBalanceAmount('')
+            }}
+          />
+
+          {/* Modal */}
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Adicionar Saldo
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Adicione dinheiro ao seu saldo atual. Você ganhará pontos de recompensa!
+              </p>
+
+              <div className="mb-6">
+                <Input
+                  label="Valor"
+                  type="text"
+                  value={balanceAmount}
+                  onChange={(e) => {
+                    const formatted = formatCurrencyInput(e.target.value)
+                    setBalanceAmount(formatted)
+                  }}
+                  placeholder="R$ 0,00"
+                  className="w-full"
+                />
+              </div>
+
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    soundManager.playClick()
+                    setIsAddBalanceModalOpen(false)
+                    setBalanceAmount('')
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleAddBalance}
+                  variant="primary"
+                  isLoading={isAddingBalance}
+                  disabled={parseCurrencyValue(balanceAmount) <= 0}
+                  className="flex-1"
+                >
+                  Adicionar
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de Sucesso */}
+      <SuccessModal
+        isOpen={isSuccessModalOpen}
+        onClose={() => {
+          soundManager.playClick()
+          setIsSuccessModalOpen(false)
+        }}
+        onAction={() => {
+          soundManager.playClick()
+          setIsSuccessModalOpen(false)
+        }}
+        title="Sucesso!"
+        message={successMessage}
+        actionText="OK"
+      />
     </div>
   )
 }
