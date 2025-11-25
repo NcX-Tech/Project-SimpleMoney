@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useEffect } from 'react'
-import { X, CheckCircle } from 'lucide-react'
+import { X, CheckCircle, AlertCircle } from 'lucide-react'
 import { soundManager } from '@/lib/sounds'
 
 /**
@@ -86,10 +86,12 @@ export const SuccessModal = ({
           </button>
 
           {/* Conteúdo */}
-          <div className="flex flex-col items-center justify-center py-4">
-            {/* Ícone verde circular */}
+          <div className="flex flex-col items-center py-4">
+            {/* Ícone verde circular com checkmark (conforme design) */}
             <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mb-4">
-              <CheckCircle className="w-8 h-8 text-green-600 dark:text-green-400" />
+              <div className="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                <CheckCircle className="w-8 h-8 text-white" />
+              </div>
             </div>
 
             {/* Título */}
@@ -98,14 +100,18 @@ export const SuccessModal = ({
             </h2>
 
             {/* Mensagem */}
-            <p className="text-sm text-gray-600 dark:text-gray-300 text-center mb-6">
+            <p className="text-sm text-gray-600 dark:text-gray-300 mb-6 text-center">
               {message}
             </p>
 
-            {/* Botão de ação */}
+            {/* Botão de ação - cinza se for "Voltar", roxo caso contrário */}
             <button
               onClick={handleAction}
-              className="w-full px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg font-medium transition-colors"
+              className={`w-full px-6 py-3 rounded-lg font-medium transition-colors ${
+                actionText.toLowerCase() === "voltar"
+                  ? "bg-gray-300 hover:bg-gray-400 dark:bg-gray-600 dark:hover:bg-gray-700 text-gray-900 dark:text-white"
+                  : "bg-primary-500 hover:bg-primary-600 text-white"
+              }`}
             >
               {actionText}
             </button>

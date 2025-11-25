@@ -174,6 +174,10 @@ export default function GoalsPage() {
                             <span className="text-sm font-medium">Cancelar meta</span>
                           </button>
                           <button
+                            onClick={() => {
+                              soundManager.playClick();
+                              router.push(`/goals/${goal.id}`);
+                            }}
                             className="flex items-center text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
                           >
                             <span className="text-sm font-medium mr-2">Detalhes</span>

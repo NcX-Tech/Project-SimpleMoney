@@ -1,7 +1,7 @@
 'use client'
 
-import React from 'react'
-import { useAuthStore, useDashboardStore, useGoalsStore } from '@/lib/store'
+import React, { useEffect } from 'react'
+import { useAuthStore, useDashboardStore, useGoalsStore, useTransactionsStore } from '@/lib/store'
 import { Header } from '@/components/layout/Header'
 import { Navigation } from '@/components/layout/Navigation'
 import { Card } from '@/components/ui/Card'
@@ -12,14 +12,26 @@ import Link from 'next/link'
 /**
  * Página Home/Dashboard
  * Exibe informações financeiras, metas, transações e desafios
+ * Prioriza experiência desktop mas mantém responsividade mobile
  */
 export default function HomePage() {
   const { user } = useAuthStore()
-  const { balance, transactionsCount, dailyChallenge } = useDashboardStore()
+  const { balance, transactionsCount, dailyChallenge, updateBalance } = useDashboardStore()
   const { calculateOverallProgress } = useGoalsStore()
+  const { calculateBalance, transactions } = useTransactionsStore()
   
   // Calcula o progresso geral das metas
   const goalsProgress = calculateOverallProgress()
+  
+  // Sincroniza o saldo do dashboard com as transações
+  // Calcula o saldo baseado nas transações e atualiza o dashboard
+  useEffect(() => {
+    const newBalance = calculateBalance()
+    // Atualiza apenas se houver diferença significativa (evita loops infinitos)
+    if (Math.abs(newBalance - balance) > 0.01) {
+      updateBalance(newBalance)
+    }
+  }, [transactions.length, calculateBalance, balance, updateBalance])
 
   return (
     <div className="min-h-screen bg-gray-50 flex flex-col">
@@ -78,7 +90,7 @@ export default function HomePage() {
                     Últimas Transações
                   </h3>
                   <p className="text-gray-600 dark:text-gray-400 text-sm">
-                    {transactionsCount} nesta semana
+                    {transactions.length} transações
                   </p>
                 </div>
                 <Link
