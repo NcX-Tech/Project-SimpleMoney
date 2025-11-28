@@ -73,13 +73,15 @@ export default function HomePage() {
   const { addPoints } = useProfileStore()
   
   // Carrega dados ao montar o componente
+  // Ordem importante: primeiro carrega transações (que calcula o saldo), depois os outros dados
   useEffect(() => {
     const loadData = async () => {
       try {
-        await Promise.all([
-          loadDashboardData(),
-          loadTransactions(),
-        ])
+        // Primeiro carrega transações (isso calcula e atualiza o saldo)
+        await loadTransactions()
+        
+        // Depois carrega os outros dados (que não devem sobrescrever o saldo)
+        await loadDashboardData()
       } catch (error) {
         console.error('Erro ao carregar dados:', error)
       }
@@ -108,23 +110,11 @@ export default function HomePage() {
   // Calcula o progresso geral das metas
   const goalsProgress = calculateOverallProgress()
   
-  // Sincroniza o saldo do dashboard com as transações
-  // Calcula o saldo baseado nas transações e atualiza o dashboard
-  // Nota: O saldo é atualizado automaticamente quando:
-  // - Transações são adicionadas/removidas (através de addTransaction/removeTransaction)
-  // - Receita é adicionada à meta (debita do saldo através de addIncomeToGoal)
-  // Este useEffect serve apenas como backup para sincronização quando transações mudam
-  // O saldo do store é a fonte única da verdade e será atualizado automaticamente
-  useEffect(() => {
-    // Recalcula o saldo apenas quando transações mudam
-    // Não sobrescreve se o saldo foi atualizado manualmente (ex: ao adicionar à meta)
-    const newBalance = calculateBalance()
-    // Atualiza apenas se o novo saldo calculado for diferente E maior que o atual
-    // Isso evita sobrescrever quando o saldo foi debitado manualmente
-    if (Math.abs(newBalance - balance) > 0.01 && newBalance > balance) {
-      updateBalance(newBalance)
-    }
-  }, [transactions.length, calculateBalance])
+  // O saldo é atualizado automaticamente quando:
+  // - Transações são carregadas (loadTransactions)
+  // - Transações são adicionadas/removidas/atualizadas (addTransaction/removeTransaction/updateTransaction)
+  // - Dados do dashboard são carregados (loadDashboardData)
+  // Não é necessário um useEffect aqui, pois o saldo é sempre calculado a partir das transações
 
   /**
    * Adiciona saldo ao saldo atual
