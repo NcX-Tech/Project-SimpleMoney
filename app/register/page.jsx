@@ -23,16 +23,17 @@ export default function RegisterPage() {
     age: '',
     email: '',
     password: '',
-    userType: 'Jovem',
+    userType: 'teen', // Valor padrão mapeado para o banco
   })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
 
   // Opções para o tipo de usuário
+  // Mapeamento: Jovem -> teen, Adulto -> adult, Idoso -> adult
   const userTypeOptions = [
-    { value: 'Jovem', label: 'Jovem' },
-    { value: 'Adulto', label: 'Adulto' },
-    { value: 'Idoso', label: 'Idoso' },
+    { value: 'teen', label: 'Jovem' },
+    { value: 'adult', label: 'Adulto' },
+    { value: 'adult', label: 'Idoso' }, // Idoso também usa 'adult' por enquanto
   ]
 
   /**
@@ -74,13 +75,16 @@ export default function RegisterPage() {
         age: age,
         email: formData.email,
         password: formData.password,
-        userType: formData.userType,
+        userType: formData.userType, // Já está mapeado corretamente
       })
       
       // Redireciona para a página principal após registro bem-sucedido
       router.push('/home')
     } catch (err) {
-      setError('Erro ao criar conta. Tente novamente.')
+      console.error('Erro detalhado:', err)
+      // Exibe mensagem de erro mais específica
+      const errorMessage = err?.message || err?.error?.message || 'Erro ao criar conta. Tente novamente.'
+      setError(errorMessage)
       setIsLoading(false)
     } finally {
       setIsLoading(false)
@@ -88,14 +92,14 @@ export default function RegisterPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
         {/* Cabeçalho */}
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-2">
             Crie sua conta
           </h1>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 dark:text-gray-300 text-sm">
             Comece sua jornada financeira hoje
           </p>
         </div>
@@ -173,7 +177,7 @@ export default function RegisterPage() {
 
         {/* Link para login */}
         <div className="text-center mt-6">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Já tem uma conta?{' '}
             <Link
               href="/login"

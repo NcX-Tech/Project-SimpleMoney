@@ -143,7 +143,7 @@ export default function GoalDetailsPage() {
       const amount = parseCurrencyValue(incomeAmount);
       
       // Adiciona a receita à meta (agora debita do saldo)
-      const result = addIncomeToGoal(goalId, amount);
+      const result = await addIncomeToGoal(goalId, amount);
 
       if (result.success) {
         // Sucesso - recarrega a meta para obter valores atualizados

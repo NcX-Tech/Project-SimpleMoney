@@ -195,7 +195,7 @@ export default function AddTransactionPage() {
         date: parseDateValue(formData.date),
       }
       
-      addTransaction(transaction)
+      await addTransaction(transaction)
       
       // Abre modal de sucesso
       setIsSuccessModalOpen(true)

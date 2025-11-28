@@ -39,13 +39,40 @@ export default function LoginPage() {
         return
       }
 
+      // Validação de email
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(email)) {
+        setError('Por favor, insira um email válido')
+        setIsLoading(false)
+        return
+      }
+
+      // Validação de senha
+      if (password.length < 6) {
+        setError('A senha deve ter pelo menos 6 caracteres')
+        setIsLoading(false)
+        return
+      }
+
       // Chama a função de login do store
       await login(email, password)
       
       // Redireciona para a página principal após login bem-sucedido
       router.push('/home')
     } catch (err) {
-      setError('Erro ao fazer login. Verifique suas credenciais.')
+      console.error('Erro detalhado no login:', err)
+      // Mensagem de erro mais específica
+      let errorMessage = 'Erro ao fazer login. Verifique suas credenciais.'
+      if (err?.message) {
+        if (err.message.includes('Invalid login credentials')) {
+          errorMessage = 'Email ou senha incorretos. Verifique suas credenciais.'
+        } else if (err.message.includes('Email not confirmed')) {
+          errorMessage = 'Por favor, confirme seu email antes de fazer login.'
+        } else {
+          errorMessage = err.message
+        }
+      }
+      setError(errorMessage)
       setIsLoading(false)
     } finally {
       setIsLoading(false)
@@ -53,12 +80,12 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-2xl shadow-lg">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-2xl shadow-lg">
         {/* Cabeçalho */}
         <div className="text-center">
           <h1 className="text-3xl font-bold text-primary-500 mb-2">SimpleMoney</h1>
-          <p className="text-gray-600 text-sm">
+          <p className="text-gray-600 dark:text-gray-300 text-sm">
             Bem-vindo! Faça login ou cadastre-se
           </p>
         </div>
@@ -120,7 +147,7 @@ export default function LoginPage() {
 
         {/* Link para registro */}
         <div className="text-center mt-6">
-          <p className="text-sm text-gray-600">
+          <p className="text-sm text-gray-600 dark:text-gray-300">
             Não tem uma conta?{' '}
             <Link
               href="/register"

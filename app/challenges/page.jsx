@@ -1,13 +1,13 @@
 "use client";
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 import { SuccessModal } from "@/components/ui/SuccessModal";
-import { useDashboardStore, useProfileStore, useTransactionsStore } from "@/lib/store";
+import { useDashboardStore, useProfileStore, useTransactionsStore, useGoalsStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
 import {
   Trophy,
@@ -22,6 +22,8 @@ import {
   Zap,
   CheckCircle,
   XCircle,
+  List,
+  Play,
 } from "lucide-react";
 
 /**
@@ -66,14 +68,39 @@ export default function ChallengesPage() {
     dailyChallenge,
     updateDailyChallenge,
     acceptedChallenges,
+    availableChallenges,
     acceptChallenge,
     abandonChallenge,
     updateChallengeProgress,
     getAcceptedChallenge,
+    loadChallenges,
+    loadDashboardData,
   } = useDashboardStore();
   const { points, achievements, addPoints, addAchievement } =
     useProfileStore();
-  const { addTransaction, transactions } = useTransactionsStore();
+  const { addTransaction, transactions, loadTransactions } = useTransactionsStore();
+  const { loadGoals } = useGoalsStore();
+  
+  // Estado para controlar qual aba está ativa
+  const [activeTab, setActiveTab] = useState('active'); // 'active' ou 'available'
+  
+  // Carrega dados ao montar o componente
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          loadDashboardData(),
+          loadChallenges(),
+          loadTransactions(),
+          loadGoals(),
+        ]);
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+      }
+    };
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // Estados do modal de adicionar saldo
   const [isAddBalanceModalOpen, setIsAddBalanceModalOpen] = useState(false);
@@ -82,110 +109,79 @@ export default function ChallengesPage() {
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
 
-  // Desafios disponíveis
-  const challenges = useMemo(
-    () => {
-      // Calcula economia baseada em transações de receita vs despesa
-      const weeklyIncome = transactions
-        .filter(
-          (t) =>
-            t.type === "income" &&
-            new Date(t.date) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        )
-        .reduce((sum, t) => sum + t.value, 0);
-      const weeklyExpense = transactions
-        .filter(
-          (t) =>
-            t.type === "expense" &&
-            new Date(t.date) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
-        )
-        .reduce((sum, t) => sum + t.value, 0);
-      const weeklySavings = Math.max(0, weeklyIncome - weeklyExpense);
+  // Mapeia ícones por nome
+  const iconMap = {
+    Wallet,
+    Target,
+    Trophy,
+    TrendingUp,
+    Zap,
+    Award,
+    Star,
+  };
 
-      const monthlyIncome = transactions
-        .filter(
-          (t) =>
-            t.type === "income" &&
-            new Date(t.date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        )
-        .reduce((sum, t) => sum + t.value, 0);
-      const monthlyExpense = transactions
-        .filter(
-          (t) =>
-            t.type === "expense" &&
-            new Date(t.date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-        )
-        .reduce((sum, t) => sum + t.value, 0);
-      const monthlySavings = Math.max(0, monthlyIncome - monthlyExpense);
+  // Desafios ativos (aceitos pelo usuário)
+  const activeChallenges = useMemo(() => {
+    return acceptedChallenges.map((accepted) => {
+      const available = availableChallenges.find((a) => a.id === accepted.challengeId);
+      const IconComponent = available ? iconMap[available.icon] || Trophy : Trophy;
+      const color = available?.color || 'blue';
+      
+      return {
+        id: accepted.challengeId,
+        title: accepted.title,
+        description: accepted.description,
+        target: accepted.target,
+        current: accepted.current,
+        reward: accepted.reward,
+        icon: IconComponent,
+        color,
+        completed: accepted.status === 'completed',
+        status: accepted.status,
+        accepted: true,
+      };
+    });
+  }, [acceptedChallenges, availableChallenges]);
 
-      return [
-        {
-          id: "1",
-          title: "Economista Semanal",
-          description: "Economize R$ 50 esta semana",
-          target: 50,
-          current: 0,
-          reward: 100,
-          icon: Wallet,
-          color: "blue",
-          completed: false,
-        },
-        {
-          id: "2",
-          title: "Poupador Mensal",
-          description: "Economize R$ 200 este mês",
-          target: 200,
-          current: 0,
-          reward: 500,
-          icon: Target,
-          color: "green",
-          completed: false,
-        },
-        {
-          id: "3",
-          title: "Meta Master",
-          description: "Complete 3 metas",
-          target: 3,
-          current: achievements.filter((a) => a.title.includes("Meta")).length,
-          reward: 300,
-          icon: Trophy,
-          color: "purple",
-          completed:
-            achievements.filter((a) => a.title.includes("Meta")).length >= 3,
-        },
-        {
-          id: "4",
-          title: "Transações Pro",
-          description: "Registre 10 transações",
-          target: 10,
-          current: transactions.length,
-          reward: 150,
-          icon: TrendingUp,
-          color: "orange",
-          completed: transactions.length >= 10,
-        },
-      ].map((challenge) => {
-        // Verifica se o desafio foi aceito
-        const accepted = getAcceptedChallenge(challenge.id);
-        if (accepted) {
-          // Atualiza com dados do desafio aceito
-          return {
-            ...challenge,
-            current: accepted.current,
-            completed: accepted.status === "completed",
-            status: accepted.status,
-            accepted: true,
-          };
+  // Desafios disponíveis (ainda não aceitos)
+  const challengesToAccept = useMemo(() => {
+    const acceptedIds = new Set(acceptedChallenges.map((c) => c.challengeId));
+    return availableChallenges
+      .filter((challenge) => !acceptedIds.has(challenge.id))
+      .map((challenge) => {
+        const IconComponent = iconMap[challenge.icon] || Trophy;
+        
+        // Calcula progresso baseado em dados reais
+        let current = 0;
+        if (challenge.id === '3') {
+          // Meta Master - conta metas completadas
+          current = achievements.filter((a) => a.title.includes("Meta")).length;
+        } else if (challenge.id === '4') {
+          // Transações Pro - conta transações
+          current = transactions.length;
+        } else if (challenge.id === '5') {
+          // Primeiro Passo - verifica se tem transação
+          current = transactions.length > 0 ? 1 : 0;
+        } else {
+          // Desafios de economia - calcula economia total
+          const totalIncome = transactions
+            .filter((t) => t.type === 'income')
+            .reduce((sum, t) => sum + parseFloat(t.value || 0), 0);
+          const totalExpense = transactions
+            .filter((t) => t.type === 'expense')
+            .reduce((sum, t) => sum + parseFloat(t.value || 0), 0);
+          current = Math.max(0, totalIncome - totalExpense);
         }
+        
         return {
           ...challenge,
+          icon: IconComponent,
+          current,
+          completed: current >= challenge.target,
           accepted: false,
-          status: null,
         };
       });
-    },
-    [dailyChallenge, achievements, transactions, acceptedChallenges, getAcceptedChallenge]
-  );
+  }, [availableChallenges, acceptedChallenges, achievements, transactions]);
 
   /**
    * Calcula o progresso de um desafio em porcentagem
@@ -400,16 +396,58 @@ export default function ChallengesPage() {
             </Card>
           </div>
 
-          {/* Desafios Ativos */}
+          {/* Desafios - Com Abas */}
           <div className="mb-6 md:mb-8">
-            <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white mb-4 md:mb-6 flex items-center gap-2">
-              <Trophy className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
-              Desafios Ativos
-            </h2>
+            <div className="flex items-center justify-between mb-4 md:mb-6">
+              <h2 className="text-xl md:text-2xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Trophy className="w-6 h-6 md:w-8 md:h-8 text-yellow-500" />
+                Desafios
+              </h2>
+            </div>
+            
+            {/* Abas */}
+            <div className="flex gap-2 mb-4 md:mb-6 border-b border-gray-200 dark:border-gray-700">
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setActiveTab('active');
+                }}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === 'active'
+                    ? 'text-primary-500 border-b-2 border-primary-500'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Play className="w-4 h-4" />
+                  Ativos ({activeChallenges.length})
+                </div>
+              </button>
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setActiveTab('available');
+                }}
+                className={`px-4 py-2 font-medium transition-colors ${
+                  activeTab === 'available'
+                    ? 'text-primary-500 border-b-2 border-primary-500'
+                    : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-gray-200'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <List className="w-4 h-4" />
+                  Disponíveis ({challengesToAccept.length})
+                </div>
+              </button>
+            </div>
+
+            {/* Conteúdo das Abas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-              {challenges.map((challenge) => {
-                const IconComponent = challenge.icon;
-                const progress = calculateProgress(challenge.current, challenge.target);
+              {activeTab === 'active' ? (
+                activeChallenges.length > 0 ? (
+                  activeChallenges.map((challenge) => {
+                    const IconComponent = challenge.icon;
+                    const progress = calculateProgress(challenge.current, challenge.target);
 
                 return (
                   <Card
@@ -528,8 +566,118 @@ export default function ChallengesPage() {
                       </div>
                     )}
                   </Card>
-                );
-              })}
+                  );
+                  })
+                ) : (
+                  <Card className="p-8 text-center col-span-2">
+                    <Trophy className="w-12 h-12 md:w-16 md:h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Você ainda não aceitou nenhum desafio. Explore os desafios disponíveis!
+                    </p>
+                  </Card>
+                )
+              ) : (
+                challengesToAccept.length > 0 ? (
+                  challengesToAccept.map((challenge) => {
+                    const IconComponent = challenge.icon;
+                    const progress = calculateProgress(challenge.current, challenge.target);
+                    
+                    return (
+                      <Card
+                        key={challenge.id}
+                        className={`p-4 md:p-6 ${getChallengeColor(challenge.color)}`}
+                      >
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-3">
+                            <div
+                              className={`p-3 rounded-full bg-white dark:bg-gray-800 ${getIconColor(
+                                challenge.color
+                              )}`}
+                            >
+                              <IconComponent className="w-6 h-6 md:w-8 md:h-8" />
+                            </div>
+                            <div>
+                              <h3 className="text-base md:text-lg font-bold text-gray-900 dark:text-white">
+                                {challenge.title}
+                              </h3>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                {challenge.description}
+                              </p>
+                            </div>
+                          </div>
+                          {challenge.completed && (
+                            <div className="p-2 bg-yellow-400 rounded-full">
+                              <Sparkles className="w-5 h-5 text-yellow-900" />
+                            </div>
+                          )}
+                        </div>
+
+                        <div className="space-y-2">
+                          {challenge.current > 0 && (
+                            <div className="w-full h-3 bg-white dark:bg-gray-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full transition-all duration-300 ${
+                                  challenge.completed
+                                    ? "bg-green-500"
+                                    : getIconColor(challenge.color).replace("text-", "bg-")
+                                }`}
+                                style={{ width: `${progress}%` }}
+                              />
+                            </div>
+                          )}
+                          <div className="flex justify-between items-center text-sm">
+                            <span className="text-gray-600 dark:text-gray-400">
+                              {challenge.id === "3" || challenge.id === "4" || challenge.id === "5"
+                                ? `${challenge.current} / ${challenge.target}`
+                                : `${formatCurrency(challenge.current)} / ${formatCurrency(challenge.target)}`}
+                            </span>
+                            <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                              <Gift className="w-4 h-4" />
+                              <span className="font-semibold">
+                                Recompensa: +{challenge.reward} pts
+                              </span>
+                            </div>
+                          </div>
+                          <button
+                            onClick={async () => {
+                              soundManager.playClick();
+                              try {
+                                await acceptChallenge(challenge.id, {
+                                  title: challenge.title,
+                                  description: challenge.description,
+                                  target: challenge.target,
+                                  reward: challenge.reward,
+                                });
+                                setSuccessMessage(
+                                  `Desafio "${challenge.title}" aceito! Comece a economizar para completá-lo.`
+                                );
+                                setIsSuccessModalOpen(true);
+                                // Recarrega os desafios
+                                await loadChallenges();
+                              } catch (error) {
+                                console.error('Erro ao aceitar desafio:', error);
+                                setSuccessMessage('Erro ao aceitar desafio. Tente novamente.');
+                                setIsSuccessModalOpen(true);
+                              }
+                            }}
+                            className="w-full px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <CheckCircle className="w-4 h-4" />
+                            Aceitar Desafio
+                          </button>
+                        </div>
+                      </Card>
+                    );
+                  })
+                ) : (
+                  <Card className="p-8 text-center col-span-2">
+                    <List className="w-12 h-12 md:w-16 md:h-16 text-gray-400 mx-auto mb-4" />
+                    <p className="text-gray-600 dark:text-gray-400">
+                      Todos os desafios disponíveis foram aceitos! Continue trabalhando para completá-los.
+                    </p>
+                  </Card>
+                )
+              )}
             </div>
           </div>
 

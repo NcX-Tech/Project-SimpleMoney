@@ -67,10 +67,26 @@ const formatDate = (dateString) => {
 export default function HomePage() {
   const router = useRouter()
   const { user } = useAuthStore()
-  const { balance, transactionsCount, dailyChallenge, updateBalance } = useDashboardStore()
+  const { balance, transactionsCount, dailyChallenge, updateBalance, loadDashboardData } = useDashboardStore()
   const { calculateOverallProgress } = useGoalsStore()
-  const { calculateBalance, transactions, addTransaction, removeTransaction, updateTransaction } = useTransactionsStore()
+  const { calculateBalance, transactions, addTransaction, removeTransaction, updateTransaction, loadTransactions } = useTransactionsStore()
   const { addPoints } = useProfileStore()
+  
+  // Carrega dados ao montar o componente
+  useEffect(() => {
+    const loadData = async () => {
+      try {
+        await Promise.all([
+          loadDashboardData(),
+          loadTransactions(),
+        ])
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error)
+      }
+    }
+    loadData()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
   
   // Estados do modal de adicionar saldo
   const [isAddBalanceModalOpen, setIsAddBalanceModalOpen] = useState(false)
@@ -336,10 +352,10 @@ export default function HomePage() {
                   Desafio do Dia
                 </h3>
                 <h4 className="text-base font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                  {dailyChallenge.title}
+                  {dailyChallenge?.title || 'Poupador da Semana'}
                 </h4>
                 <p className="text-gray-600 dark:text-gray-400 text-sm">
-                  {dailyChallenge.description}
+                  {dailyChallenge?.description || 'Economize R$ 50 até o final da semana'}
                 </p>
               </div>
 
@@ -348,12 +364,12 @@ export default function HomePage() {
                 <div className="w-full h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
                   <div
                     className="h-full bg-orange-500 rounded-full transition-all duration-300"
-                    style={{ width: `${dailyChallenge.progress}%` }}
+                    style={{ width: `${dailyChallenge?.progress || 0}%` }}
                   />
                 </div>
                 <div className="flex justify-between text-xs text-gray-600 dark:text-gray-400">
-                  <span>{formatCurrency(dailyChallenge.current)}</span>
-                  <span>{formatCurrency(dailyChallenge.target)}</span>
+                  <span>{formatCurrency(dailyChallenge?.current || 0)}</span>
+                  <span>{formatCurrency(dailyChallenge?.target || 50)}</span>
                 </div>
               </div>
             </div>

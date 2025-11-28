@@ -141,7 +141,7 @@ export const AddGoalForm = ({ onSuccess }) => {
         targetDate: parseDate(formData.targetDate),
       }
 
-      addGoal(newGoal)
+      await addGoal(newGoal)
       soundManager.playSuccess()
       
       if (onSuccess) {

@@ -1,8 +1,17 @@
 'use client'
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
-import { useState, useEffect } from 'react'
-import { usePreferencesStore } from '@/lib/store'
+import { useState } from 'react'
+import { ThemeInitializer } from './ThemeInitializer'
+import { useAuthCheck } from './hooks/useAuthCheck'
+
+/**
+ * Componente interno para verificar autenticação
+ */
+function AuthChecker({ children }) {
+  useAuthCheck()
+  return <>{children}</>
+}
 
 /**
  * Providers wrapper para a aplicação
@@ -23,22 +32,13 @@ export function Providers({ children }) {
       })
   )
 
-  // Inicializa o tema
-  const { isDarkMode } = usePreferencesStore()
-  
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      if (isDarkMode) {
-        document.documentElement.classList.add('dark')
-      } else {
-        document.documentElement.classList.remove('dark')
-      }
-    }
-  }, [isDarkMode])
-
   return (
     <QueryClientProvider client={queryClient}>
-      {children}
+      <ThemeInitializer>
+        <AuthChecker>
+          {children}
+        </AuthChecker>
+      </ThemeInitializer>
     </QueryClientProvider>
   )
 }

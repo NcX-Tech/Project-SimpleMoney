@@ -135,7 +135,7 @@ export default function AddGoalPage() {
 
     try {
       // Cria a meta
-      addGoal({
+      await addGoal({
         title: formData.title.trim(),
         targetValue: parseCurrency(formData.targetValue),
         currentValue: 0, // Começa com zero
