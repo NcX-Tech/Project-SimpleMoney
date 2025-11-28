@@ -25,7 +25,7 @@ import { Input } from "@/components/ui/Input";
 import { SuccessModal } from "@/components/ui/SuccessModal";
 import { useTransactionsStore, useGoalsStore, useDashboardStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
-import { Target, X, Calendar, AlertCircle } from "lucide-react";
+import { Target, X, Calendar, AlertCircle, Edit, Trash2 } from "lucide-react";
 
 /**
  * Mapeamento de ícones por categoria
@@ -106,13 +106,33 @@ const parseDateValue = (formattedDate) => {
 };
 
 /**
+ * Formata valor monetário para input (R$ 0,00)
+ */
+const formatCurrencyInput = (value) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers === "") return "";
+  const cents = parseInt(numbers, 10);
+  const reais = (cents / 100).toFixed(2);
+  return `R$ ${reais.replace(".", ",")}`;
+};
+
+/**
+ * Converte valor formatado (R$ 0,00) para número
+ */
+const parseCurrencyValue = (formattedValue) => {
+  const numbers = formattedValue.replace(/\D/g, "");
+  if (numbers === "") return 0;
+  return parseFloat((parseInt(numbers, 10) / 100).toFixed(2));
+};
+
+/**
  * Página de Transações
  * Exibe lista de transações com filtros por tipo e categoria
  * Prioriza experiência desktop mas mantém responsividade mobile
  */
 export default function TransactionsPage() {
   const router = useRouter();
-  const { getTransactionsByPeriod, getCategories } = useTransactionsStore();
+  const { getTransactionsByPeriod, getCategories, updateTransaction, removeTransaction } = useTransactionsStore();
   const { goals, addIncomeToGoal } = useGoalsStore();
 
   // Estados dos filtros
@@ -131,6 +151,13 @@ export default function TransactionsPage() {
   const [successMessage, setSuccessMessage] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const { balance } = useDashboardStore();
+  
+  // Estados para edição/remoção
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState(null);
+  const [editFormData, setEditFormData] = useState({ name: "", value: "", category: "", date: "" });
 
   // Obtém todas as categorias disponíveis
   const categories = useMemo(() => {
@@ -428,20 +455,57 @@ export default function TransactionsPage() {
                           {formatCurrency(transaction.value)}
                         </p>
 
-                        {/* Botão para adicionar à meta (apenas para entradas) */}
-                        {isIncome && goals.length > 0 && (
+                        {/* Botões de ação */}
+                        <div className="flex items-center gap-2">
+                          {/* Botão para adicionar à meta (apenas para entradas) */}
+                          {isIncome && goals.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleAddToGoal(transaction);
+                              }}
+                              className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors"
+                              aria-label="Adicionar à meta"
+                              title="Adicionar receita a uma meta"
+                            >
+                              <Target className="w-4 h-4 md:w-5 md:h-5" />
+                            </button>
+                          )}
+                          {/* Botão de editar */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              handleAddToGoal(transaction);
+                              soundManager.playClick();
+                              setEditingTransaction(transaction);
+                              setEditFormData({
+                                name: transaction.name,
+                                value: transaction.value.toFixed(2).replace(".", ","),
+                                category: transaction.category,
+                                date: formatDate(transaction.date),
+                              });
+                              setIsEditModalOpen(true);
                             }}
                             className="p-2 rounded-lg bg-primary-100 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400 hover:bg-primary-200 dark:hover:bg-primary-900/50 transition-colors"
-                            aria-label="Adicionar à meta"
-                            title="Adicionar receita a uma meta"
+                            aria-label="Editar transação"
+                            title="Editar transação"
                           >
-                            <Target className="w-4 h-4 md:w-5 md:h-5" />
+                            <Edit className="w-4 h-4 md:w-5 md:h-5" />
                           </button>
-                        )}
+                          {/* Botão de remover */}
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              soundManager.playClick();
+                              setTransactionToDelete(transaction);
+                              setIsDeleteModalOpen(true);
+                            }}
+                            className="p-2 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 hover:bg-red-200 dark:hover:bg-red-900/50 transition-colors"
+                            aria-label="Remover transação"
+                            title="Remover transação"
+                          >
+                            <Trash2 className="w-4 h-4 md:w-5 md:h-5" />
+                          </button>
+                        </div>
                       </div>
                     </div>
                   </Card>
@@ -656,6 +720,197 @@ export default function TransactionsPage() {
                 >
                   OK
                 </button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de Edição de Transação */}
+      {isEditModalOpen && editingTransaction && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick();
+              setIsEditModalOpen(false);
+              setEditingTransaction(null);
+              setEditFormData({ name: "", value: "", category: "", date: "" });
+            }}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsEditModalOpen(false);
+                  setEditingTransaction(null);
+                  setEditFormData({ name: "", value: "", category: "", date: "" });
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Editar Transação
+              </h2>
+              <div className="space-y-4">
+                <Input
+                  label="Nome"
+                  type="text"
+                  value={editFormData.name}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, name: e.target.value })
+                  }
+                  className="w-full"
+                />
+                <Input
+                  label="Valor"
+                  type="text"
+                  value={editFormData.value}
+                  onChange={(e) => {
+                    const formatted = formatCurrencyInput(e.target.value);
+                    setEditFormData({ ...editFormData, value: formatted });
+                  }}
+                  placeholder="R$ 0,00"
+                  className="w-full"
+                />
+                <Input
+                  label="Data"
+                  type="text"
+                  value={editFormData.date}
+                  onChange={(e) => {
+                    const formatted = formatDateInput(e.target.value);
+                    setEditFormData({ ...editFormData, date: formatted });
+                  }}
+                  placeholder="DD/MM/AAAA"
+                  maxLength={10}
+                  className="w-full"
+                />
+                <Select
+                  label="Categoria"
+                  value={editFormData.category}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, category: e.target.value })
+                  }
+                  options={[
+                    { value: "Alimentação", label: "Alimentação" },
+                    { value: "Lazer", label: "Lazer" },
+                    { value: "Educação", label: "Educação" },
+                    { value: "Trabalho", label: "Trabalho" },
+                    { value: "Tecnologia", label: "Tecnologia" },
+                    { value: "Saúde", label: "Saúde" },
+                    { value: "Casa", label: "Casa" },
+                    { value: "Transporte", label: "Transporte" },
+                    { value: "Compras", label: "Compras" },
+                    { value: "Outros", label: "Outros" },
+                  ]}
+                />
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      soundManager.playClick();
+                      setIsEditModalOpen(false);
+                      setEditingTransaction(null);
+                      setEditFormData({ name: "", value: "", category: "", date: "" });
+                    }}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      soundManager.playClick();
+                      const newValue = parseCurrencyValue(editFormData.value);
+                      const newDate = parseDateValue(editFormData.date);
+                      updateTransaction(editingTransaction.id, {
+                        name: editFormData.name,
+                        value: newValue,
+                        category: editFormData.category,
+                        date: newDate || editingTransaction.date,
+                      });
+                      setIsEditModalOpen(false);
+                      setEditingTransaction(null);
+                      setEditFormData({ name: "", value: "", category: "", date: "" });
+                      setSuccessMessage("Transação editada com sucesso!");
+                      setIsSuccessModalOpen(true);
+                      soundManager.playSuccess();
+                    }}
+                    variant="primary"
+                    className="flex-1"
+                    disabled={
+                      !editFormData.name ||
+                      !editFormData.category ||
+                      parseCurrencyValue(editFormData.value) <= 0
+                    }
+                  >
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de Remoção de Transação */}
+      {isDeleteModalOpen && transactionToDelete && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick();
+              setIsDeleteModalOpen(false);
+              setTransactionToDelete(null);
+            }}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsDeleteModalOpen(false);
+                  setTransactionToDelete(null);
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Remover Transação
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Tem certeza que deseja remover a transação{" "}
+                <span className="font-semibold">{transactionToDelete.name}</span>?
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsDeleteModalOpen(false);
+                    setTransactionToDelete(null);
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    soundManager.playClick();
+                    removeTransaction(transactionToDelete.id);
+                    setIsDeleteModalOpen(false);
+                    setTransactionToDelete(null);
+                    setSuccessMessage("Transação removida com sucesso!");
+                    setIsSuccessModalOpen(true);
+                    soundManager.playSuccess();
+                  }}
+                  variant="primary"
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                >
+                  Remover
+                </Button>
               </div>
             </div>
           </div>

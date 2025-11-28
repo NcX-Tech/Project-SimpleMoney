@@ -7,7 +7,7 @@ const inter = Inter({ subsets: ['latin'] })
 
 // Metadata da aplicação
 export const metadata = {
-  title: 'SimpleMoney - Gerencie suas finanças',
+  title: 'SimpleMoney',
   description: 'Aplicativo para gerenciamento financeiro pessoal',
 }
 

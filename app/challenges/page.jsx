@@ -20,6 +20,8 @@ import {
   Sparkles,
   Gift,
   Zap,
+  CheckCircle,
+  XCircle,
 } from "lucide-react";
 
 /**
@@ -58,11 +60,20 @@ const parseCurrencyValue = (formattedValue) => {
  * Prioriza experiência desktop mas mantém responsividade mobile
  */
 export default function ChallengesPage() {
-  const { balance, updateBalance, dailyChallenge, updateDailyChallenge } =
-    useDashboardStore();
+  const {
+    balance,
+    updateBalance,
+    dailyChallenge,
+    updateDailyChallenge,
+    acceptedChallenges,
+    acceptChallenge,
+    abandonChallenge,
+    updateChallengeProgress,
+    getAcceptedChallenge,
+  } = useDashboardStore();
   const { points, achievements, addPoints, addAchievement } =
     useProfileStore();
-  const { addTransaction } = useTransactionsStore();
+  const { addTransaction, transactions } = useTransactionsStore();
 
   // Estados do modal de adicionar saldo
   const [isAddBalanceModalOpen, setIsAddBalanceModalOpen] = useState(false);
@@ -73,54 +84,107 @@ export default function ChallengesPage() {
 
   // Desafios disponíveis
   const challenges = useMemo(
-    () => [
-      {
-        id: "1",
-        title: "Economista Semanal",
-        description: "Economize R$ 50 esta semana",
-        target: 50,
-        current: dailyChallenge.current,
-        reward: 100, // pontos
-        icon: Wallet,
-        color: "blue",
-        completed: dailyChallenge.current >= 50,
-      },
-      {
-        id: "2",
-        title: "Poupador Mensal",
-        description: "Economize R$ 200 este mês",
-        target: 200,
-        current: Math.min(dailyChallenge.current * 4, 200),
-        reward: 500,
-        icon: Target,
-        color: "green",
-        completed: dailyChallenge.current * 4 >= 200,
-      },
-      {
-        id: "3",
-        title: "Meta Master",
-        description: "Complete 3 metas",
-        target: 3,
-        current: achievements.filter((a) => a.title.includes("Meta")).length,
-        reward: 300,
-        icon: Trophy,
-        color: "purple",
-        completed:
-          achievements.filter((a) => a.title.includes("Meta")).length >= 3,
-      },
-      {
-        id: "4",
-        title: "Transações Pro",
-        description: "Registre 10 transações",
-        target: 10,
-        current: 5, // Seria calculado dinamicamente
-        reward: 150,
-        icon: TrendingUp,
-        color: "orange",
-        completed: false,
-      },
-    ],
-    [dailyChallenge, achievements]
+    () => {
+      // Calcula economia baseada em transações de receita vs despesa
+      const weeklyIncome = transactions
+        .filter(
+          (t) =>
+            t.type === "income" &&
+            new Date(t.date) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        )
+        .reduce((sum, t) => sum + t.value, 0);
+      const weeklyExpense = transactions
+        .filter(
+          (t) =>
+            t.type === "expense" &&
+            new Date(t.date) >= new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        )
+        .reduce((sum, t) => sum + t.value, 0);
+      const weeklySavings = Math.max(0, weeklyIncome - weeklyExpense);
+
+      const monthlyIncome = transactions
+        .filter(
+          (t) =>
+            t.type === "income" &&
+            new Date(t.date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        )
+        .reduce((sum, t) => sum + t.value, 0);
+      const monthlyExpense = transactions
+        .filter(
+          (t) =>
+            t.type === "expense" &&
+            new Date(t.date) >= new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
+        )
+        .reduce((sum, t) => sum + t.value, 0);
+      const monthlySavings = Math.max(0, monthlyIncome - monthlyExpense);
+
+      return [
+        {
+          id: "1",
+          title: "Economista Semanal",
+          description: "Economize R$ 50 esta semana",
+          target: 50,
+          current: 0,
+          reward: 100,
+          icon: Wallet,
+          color: "blue",
+          completed: false,
+        },
+        {
+          id: "2",
+          title: "Poupador Mensal",
+          description: "Economize R$ 200 este mês",
+          target: 200,
+          current: 0,
+          reward: 500,
+          icon: Target,
+          color: "green",
+          completed: false,
+        },
+        {
+          id: "3",
+          title: "Meta Master",
+          description: "Complete 3 metas",
+          target: 3,
+          current: achievements.filter((a) => a.title.includes("Meta")).length,
+          reward: 300,
+          icon: Trophy,
+          color: "purple",
+          completed:
+            achievements.filter((a) => a.title.includes("Meta")).length >= 3,
+        },
+        {
+          id: "4",
+          title: "Transações Pro",
+          description: "Registre 10 transações",
+          target: 10,
+          current: transactions.length,
+          reward: 150,
+          icon: TrendingUp,
+          color: "orange",
+          completed: transactions.length >= 10,
+        },
+      ].map((challenge) => {
+        // Verifica se o desafio foi aceito
+        const accepted = getAcceptedChallenge(challenge.id);
+        if (accepted) {
+          // Atualiza com dados do desafio aceito
+          return {
+            ...challenge,
+            current: accepted.current,
+            completed: accepted.status === "completed",
+            status: accepted.status,
+            accepted: true,
+          };
+        }
+        return {
+          ...challenge,
+          accepted: false,
+          status: null,
+        };
+      });
+    },
+    [dailyChallenge, achievements, transactions, acceptedChallenges, getAcceptedChallenge]
   );
 
   /**
@@ -378,33 +442,91 @@ export default function ChallengesPage() {
                     </div>
 
                     {/* Barra de progresso */}
-                    <div className="space-y-2">
-                      <div className="w-full h-3 bg-white dark:bg-gray-800 rounded-full overflow-hidden">
-                        <div
-                          className={`h-full rounded-full transition-all duration-300 ${
-                            challenge.completed
-                              ? "bg-green-500"
-                              : getIconColor(challenge.color).replace(
-                                  "text-",
-                                  "bg-"
-                                )
-                          }`}
-                          style={{ width: `${progress}%` }}
-                        />
+                    {challenge.accepted ? (
+                      <div className="space-y-2">
+                        <div className="w-full h-3 bg-white dark:bg-gray-800 rounded-full overflow-hidden">
+                          <div
+                            className={`h-full rounded-full transition-all duration-300 ${
+                              challenge.completed
+                                ? "bg-green-500"
+                                : getIconColor(challenge.color).replace(
+                                    "text-",
+                                    "bg-"
+                                  )
+                            }`}
+                            style={{ width: `${progress}%` }}
+                          />
+                        </div>
+                        <div className="flex justify-between items-center text-sm">
+                          <span className="text-gray-600 dark:text-gray-400">
+                            {challenge.id === "3" || challenge.id === "4"
+                              ? `${challenge.current} / ${challenge.target}`
+                              : `${formatCurrency(challenge.current)} / ${formatCurrency(challenge.target)}`}
+                          </span>
+                          <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                            <Gift className="w-4 h-4" />
+                            <span className="font-semibold">
+                              +{challenge.reward} pts
+                            </span>
+                          </div>
+                        </div>
+                        {/* Botão de desistir */}
+                        {!challenge.completed && (
+                          <button
+                            onClick={() => {
+                              soundManager.playClick();
+                              abandonChallenge(challenge.id);
+                              setSuccessMessage(
+                                `Desafio "${challenge.title}" abandonado.`
+                              );
+                              setIsSuccessModalOpen(true);
+                            }}
+                            className="w-full mt-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                          >
+                            <XCircle className="w-4 h-4" />
+                            Desistir do Desafio
+                          </button>
+                        )}
+                        {challenge.completed && (
+                          <div className="mt-2 px-4 py-2 bg-green-500 text-white rounded-lg font-medium flex items-center justify-center gap-2">
+                            <CheckCircle className="w-4 h-4" />
+                            Desafio Completo!
+                          </div>
+                        )}
                       </div>
-                      <div className="flex justify-between items-center text-sm">
-                        <span className="text-gray-600 dark:text-gray-400">
-                          {formatCurrency(challenge.current)} /{" "}
-                          {formatCurrency(challenge.target)}
-                        </span>
-                        <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400">
+                    ) : (
+                      <div className="space-y-2">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {challenge.description}
+                        </p>
+                        <div className="flex items-center gap-1 text-yellow-600 dark:text-yellow-400 mb-2">
                           <Gift className="w-4 h-4" />
                           <span className="font-semibold">
-                            +{challenge.reward} pts
+                            Recompensa: +{challenge.reward} pts
                           </span>
                         </div>
+                        {/* Botão de aceitar */}
+                        <button
+                          onClick={() => {
+                            soundManager.playClick();
+                            acceptChallenge(challenge.id, {
+                              title: challenge.title,
+                              description: challenge.description,
+                              target: challenge.target,
+                              reward: challenge.reward,
+                            });
+                            setSuccessMessage(
+                              `Desafio "${challenge.title}" aceito! Comece a economizar para completá-lo.`
+                            );
+                            setIsSuccessModalOpen(true);
+                          }}
+                          className="w-full px-4 py-2 bg-primary-500 hover:bg-primary-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
+                        >
+                          <CheckCircle className="w-4 h-4" />
+                          Aceitar Desafio
+                        </button>
                       </div>
-                    </div>
+                    )}
                   </Card>
                 );
               })}

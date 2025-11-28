@@ -19,7 +19,7 @@ export const Navigation = () => {
     { href: '/home', icon: Home, label: 'Home' },
     { href: '/goals', icon: Target, label: 'Metas' },
     { href: '/transactions', icon: List, label: 'Transações' },
-    { href: '/summary', icon: BarChart3, label: 'Resumo e Balanço' },
+    { href: '/summary', icon: BarChart3, label: 'Centros de Custo' },
     { href: '/challenges', icon: Trophy, label: 'Desafios' },
     { href: '/profile', icon: User, label: 'Perfil' },
   ]

@@ -2,7 +2,7 @@
 
 import React, { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, Phone, Shield, Target, Coins, Trophy, LogOut, Edit2, Save, X, Camera } from "lucide-react";
+import { ArrowLeft, Phone, Shield, Target, Coins, Trophy, LogOut, Edit2, Save, X, Camera, Trash2, AlertTriangle } from "lucide-react";
 import { useAuthStore, useProfileStore } from "@/lib/store";
 import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
@@ -83,6 +83,8 @@ export default function ProfilePage() {
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isSuccessModalOpen, setIsSuccessModalOpen] = useState(false);
+  const [isDeleteAccountModalOpen, setIsDeleteAccountModalOpen] = useState(false);
+  const [isDeletingAccount, setIsDeletingAccount] = useState(false);
   const fileInputRef = useRef(null);
   
   // Estados do formulário
@@ -265,6 +267,58 @@ export default function ProfilePage() {
     }));
     if (fileInputRef.current) {
       fileInputRef.current.value = "";
+    }
+  };
+
+  /**
+   * Abre modal de confirmação para apagar conta
+   */
+  const handleOpenDeleteAccount = () => {
+    soundManager.playClick();
+    setIsDeleteAccountModalOpen(true);
+  };
+
+  /**
+   * Fecha modal de apagar conta
+   */
+  const handleCloseDeleteAccount = () => {
+    soundManager.playClick();
+    setIsDeleteAccountModalOpen(false);
+  };
+
+  /**
+   * Apaga a conta do usuário
+   * Nota: Em produção, isso faria uma chamada à API para deletar o registro no banco de dados
+   */
+  const handleDeleteAccount = async () => {
+    soundManager.playClick();
+    setIsDeletingAccount(true);
+
+    try {
+      // Simula delay de API
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
+      // TODO: Implementar chamada à API para deletar conta no banco de dados
+      // Exemplo:
+      // await deleteUserAccount(user.id);
+      
+      // Por enquanto, apenas faz logout e limpa os dados locais
+      // Em produção, isso seria feito pelo backend após deletar o registro
+      logout();
+      
+      // Limpa todos os dados do localStorage
+      if (typeof window !== 'undefined') {
+        localStorage.clear();
+      }
+      
+      // Redireciona para login
+      router.push('/login');
+      soundManager.playSuccess();
+    } catch (error) {
+      console.error('Erro ao apagar conta:', error);
+    } finally {
+      setIsDeletingAccount(false);
+      setIsDeleteAccountModalOpen(false);
     }
   };
 
@@ -514,6 +568,32 @@ export default function ProfilePage() {
             </button>
           </div>
 
+          {/* Botão de Apagar Conta */}
+          <Card className="dark:bg-gray-800 dark:border-gray-700 border-red-200 dark:border-red-800">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className="p-3 rounded-lg bg-red-100 dark:bg-red-900/30">
+                  <Trash2 className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <div>
+                  <h3 className="font-semibold text-gray-900 dark:text-white">
+                    APAGAR CONTA
+                  </h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Esta ação não pode ser desfeita
+                  </p>
+                </div>
+              </div>
+              <Button
+                onClick={handleOpenDeleteAccount}
+                variant="primary"
+                className="bg-red-500 hover:bg-red-600"
+              >
+                Apagar Conta
+              </Button>
+            </div>
+          </Card>
+
           {/* Lista de Conquistas */}
           <Card className="dark:bg-gray-800 dark:border-gray-700">
             <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-6">
@@ -580,6 +660,53 @@ export default function ProfilePage() {
         message="Suas informações foram salvas com sucesso."
         actionText="OK"
       />
+
+      {/* Modal de Apagar Conta */}
+      {isDeleteAccountModalOpen && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={handleCloseDeleteAccount}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              <div className="flex items-center mb-4">
+                <div className="w-12 h-12 rounded-full flex items-center justify-center mr-3 bg-red-100 dark:bg-red-900/30">
+                  <AlertTriangle className="w-6 h-6 text-red-600 dark:text-red-400" />
+                </div>
+                <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+                  Apagar Conta
+                </h2>
+              </div>
+              <p className="text-gray-600 dark:text-gray-400 mb-6">
+                Tem certeza que deseja apagar sua conta? Esta ação é{" "}
+                <span className="font-semibold text-red-600 dark:text-red-400">
+                  irreversível
+                </span>
+                . Todos os seus dados serão permanentemente removidos.
+              </p>
+              <div className="flex gap-3">
+                <Button
+                  onClick={handleCloseDeleteAccount}
+                  variant="secondary"
+                  className="flex-1"
+                  disabled={isDeletingAccount}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={handleDeleteAccount}
+                  variant="primary"
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                  isLoading={isDeletingAccount}
+                >
+                  {isDeletingAccount ? "Apagando..." : "Apagar Conta"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }

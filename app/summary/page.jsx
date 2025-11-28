@@ -18,6 +18,8 @@ import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
 import { useTransactionsStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
 import {
@@ -26,6 +28,9 @@ import {
   TrendingUp,
   TrendingDown,
   Calendar,
+  Edit,
+  Trash2,
+  X,
 } from "lucide-react";
 
 /**
@@ -53,6 +58,26 @@ const formatCurrency = (value) => {
     style: "currency",
     currency: "BRL",
   }).format(value);
+};
+
+/**
+ * Formata valor monetário para input (R$ 0,00)
+ */
+const formatCurrencyInput = (value) => {
+  const numbers = value.replace(/\D/g, "");
+  if (numbers === "") return "";
+  const cents = parseInt(numbers, 10);
+  const reais = (cents / 100).toFixed(2);
+  return `R$ ${reais.replace(".", ",")}`;
+};
+
+/**
+ * Converte valor formatado (R$ 0,00) para número
+ */
+const parseCurrencyValue = (formattedValue) => {
+  const numbers = formattedValue.replace(/\D/g, "");
+  if (numbers === "") return 0;
+  return parseFloat((parseInt(numbers, 10) / 100).toFixed(2));
 };
 
 /**
@@ -103,11 +128,19 @@ const parseDateValue = (formattedDate) => {
  * Prioriza experiência desktop mas mantém responsividade mobile
  */
 export default function SummaryPage() {
-  const { getTransactionsByPeriod } = useTransactionsStore();
+  const { getTransactionsByPeriod, updateTransaction, removeTransaction } = useTransactionsStore();
 
   // Estados do filtro de período
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
+  
+  // Estados para edição/remoção
+  const [editingTransaction, setEditingTransaction] = useState(null);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [transactionToDelete, setTransactionToDelete] = useState(null);
+  const [deleteReason, setDeleteReason] = useState("");
+  const [editFormData, setEditFormData] = useState({ value: "", category: "" });
 
   /**
    * Obtém transações filtradas por período
@@ -183,7 +216,7 @@ export default function SummaryPage() {
       {/* Conteúdo principal - Ajuste para navegação desktop */}
       <div className="flex-1 flex flex-col pb-20 md:pb-0 md:ml-20 lg:ml-20 md:transition-all md:duration-300">
         {/* Cabeçalho */}
-        <Header title="Resumo e Balanço" />
+        <Header title="Centros de Custo" />
 
         {/* Conteúdo da página - Layout otimizado para desktop */}
         <main className="flex-1 p-4 md:p-6 lg:p-8 xl:p-10 max-w-7xl mx-auto w-full">
@@ -418,9 +451,40 @@ export default function SummaryPage() {
                           {income.category} • {formatDate(income.date)}
                         </p>
                       </div>
-                      <p className="text-lg md:text-xl font-bold text-green-600 dark:text-green-400 ml-4">
-                        +{formatCurrency(income.value)}
-                      </p>
+                      <div className="flex items-center gap-2 ml-4">
+                        <p className="text-lg md:text-xl font-bold text-green-600 dark:text-green-400">
+                          +{formatCurrency(income.value)}
+                        </p>
+                        <button
+                          onClick={() => {
+                            soundManager.playClick();
+                            setEditingTransaction(income);
+                            setEditFormData({
+                              value: income.value.toFixed(2).replace(".", ","),
+                              category: income.category,
+                            });
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-2 text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+                          aria-label="Editar receita"
+                          title="Editar receita"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            soundManager.playClick();
+                            setTransactionToDelete(income);
+                            setDeleteReason("");
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="p-2 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                          aria-label="Remover receita"
+                          title="Remover receita"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -452,9 +516,40 @@ export default function SummaryPage() {
                           {expense.category} • {formatDate(expense.date)}
                         </p>
                       </div>
-                      <p className="text-lg md:text-xl font-bold text-red-600 dark:text-red-400 ml-4">
-                        -{formatCurrency(expense.value)}
-                      </p>
+                      <div className="flex items-center gap-2 ml-4">
+                        <p className="text-lg md:text-xl font-bold text-red-600 dark:text-red-400">
+                          -{formatCurrency(expense.value)}
+                        </p>
+                        <button
+                          onClick={() => {
+                            soundManager.playClick();
+                            setEditingTransaction(expense);
+                            setEditFormData({
+                              value: expense.value.toFixed(2).replace(".", ","),
+                              category: expense.category,
+                            });
+                            setIsEditModalOpen(true);
+                          }}
+                          className="p-2 text-primary-500 hover:text-primary-600 dark:text-primary-400 dark:hover:text-primary-300 transition-colors"
+                          aria-label="Editar despesa"
+                          title="Editar despesa"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          onClick={() => {
+                            soundManager.playClick();
+                            setTransactionToDelete(expense);
+                            setDeleteReason("");
+                            setIsDeleteModalOpen(true);
+                          }}
+                          className="p-2 text-red-500 hover:text-red-600 dark:text-red-400 dark:hover:text-red-300 transition-colors"
+                          aria-label="Remover despesa"
+                          title="Remover despesa"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -467,6 +562,187 @@ export default function SummaryPage() {
           </div>
         </main>
       </div>
+
+      {/* Modal de Edição */}
+      {isEditModalOpen && editingTransaction && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick();
+              setIsEditModalOpen(false);
+              setEditingTransaction(null);
+              setEditFormData({ value: "", category: "" });
+            }}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsEditModalOpen(false);
+                  setEditingTransaction(null);
+                  setEditFormData({ value: "", category: "" });
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Editar {editingTransaction.type === "income" ? "Receita" : "Despesa"}
+              </h2>
+              <div className="space-y-4">
+                <Input
+                  label="Valor"
+                  type="text"
+                  value={editFormData.value}
+                  onChange={(e) => {
+                    const formatted = formatCurrencyInput(e.target.value);
+                    setEditFormData({ ...editFormData, value: formatted });
+                  }}
+                  placeholder="R$ 0,00"
+                  className="w-full"
+                />
+                <Select
+                  label="Centro de Custo"
+                  value={editFormData.category}
+                  onChange={(e) =>
+                    setEditFormData({ ...editFormData, category: e.target.value })
+                  }
+                  options={[
+                    { value: "Alimentação", label: "Alimentação" },
+                    { value: "Lazer", label: "Lazer" },
+                    { value: "Educação", label: "Educação" },
+                    { value: "Trabalho", label: "Trabalho" },
+                    { value: "Tecnologia", label: "Tecnologia" },
+                    { value: "Saúde", label: "Saúde" },
+                    { value: "Casa", label: "Casa" },
+                    { value: "Transporte", label: "Transporte" },
+                    { value: "Compras", label: "Compras" },
+                    { value: "Outros", label: "Outros" },
+                  ]}
+                />
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => {
+                      soundManager.playClick();
+                      setIsEditModalOpen(false);
+                      setEditingTransaction(null);
+                      setEditFormData({ value: "", category: "" });
+                    }}
+                    variant="secondary"
+                    className="flex-1"
+                  >
+                    Cancelar
+                  </Button>
+                  <Button
+                    onClick={() => {
+                      soundManager.playClick();
+                      const newValue = parseCurrencyValue(editFormData.value);
+                      updateTransaction(editingTransaction.id, {
+                        value: newValue,
+                        category: editFormData.category,
+                      });
+                      setIsEditModalOpen(false);
+                      setEditingTransaction(null);
+                      setEditFormData({ value: "", category: "" });
+                      soundManager.playSuccess();
+                    }}
+                    variant="primary"
+                    className="flex-1"
+                    disabled={
+                      !editFormData.category ||
+                      parseCurrencyValue(editFormData.value) <= 0
+                    }
+                  >
+                    Salvar
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
+
+      {/* Modal de Remoção */}
+      {isDeleteModalOpen && transactionToDelete && (
+        <>
+          <div
+            className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 dark:bg-black/40"
+            onClick={() => {
+              soundManager.playClick();
+              setIsDeleteModalOpen(false);
+              setTransactionToDelete(null);
+              setDeleteReason("");
+            }}
+          />
+          <div className="fixed inset-0 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-md w-full p-6 relative animate-scale-in">
+              <button
+                onClick={() => {
+                  soundManager.playClick();
+                  setIsDeleteModalOpen(false);
+                  setTransactionToDelete(null);
+                  setDeleteReason("");
+                }}
+                className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-300"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-4">
+                Remover {transactionToDelete.type === "income" ? "Receita" : "Despesa"}
+              </h2>
+              <p className="text-gray-600 dark:text-gray-400 mb-4">
+                Tem certeza que deseja remover a{" "}
+                {transactionToDelete.type === "income" ? "receita" : "despesa"}{" "}
+                <span className="font-semibold">{transactionToDelete.name}</span>?
+              </p>
+              <div className="mb-4">
+                <Input
+                  label="Motivo da remoção *"
+                  type="text"
+                  value={deleteReason}
+                  onChange={(e) => setDeleteReason(e.target.value)}
+                  placeholder="Digite o motivo da remoção"
+                  className="w-full"
+                />
+              </div>
+              <div className="flex gap-3">
+                <Button
+                  onClick={() => {
+                    soundManager.playClick();
+                    setIsDeleteModalOpen(false);
+                    setTransactionToDelete(null);
+                    setDeleteReason("");
+                  }}
+                  variant="secondary"
+                  className="flex-1"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  onClick={() => {
+                    if (!deleteReason.trim()) {
+                      return;
+                    }
+                    soundManager.playClick();
+                    removeTransaction(transactionToDelete.id);
+                    setIsDeleteModalOpen(false);
+                    setTransactionToDelete(null);
+                    setDeleteReason("");
+                    soundManager.playSuccess();
+                  }}
+                  variant="primary"
+                  className="flex-1 bg-red-500 hover:bg-red-600"
+                  disabled={!deleteReason.trim()}
+                >
+                  Remover
+                </Button>
+              </div>
+            </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
