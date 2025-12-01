@@ -75,7 +75,7 @@ const parsePhoneValue = (formattedPhone) => {
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, logout, updateProfile } = useAuthStore();
+  const { user, logout, updateProfile, deleteAccount } = useAuthStore();
   const { points, achievements, getNotificationCount } = useProfileStore();
   const notificationCount = getNotificationCount();
   
@@ -288,34 +288,21 @@ export default function ProfilePage() {
 
   /**
    * Apaga a conta do usuário
-   * Nota: Em produção, isso faria uma chamada à API para deletar o registro no banco de dados
    */
   const handleDeleteAccount = async () => {
     soundManager.playClick();
     setIsDeletingAccount(true);
 
     try {
-      // Simula delay de API
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // TODO: Implementar chamada à API para deletar conta no banco de dados
-      // Exemplo:
-      // await deleteUserAccount(user.id);
-      
-      // Por enquanto, apenas faz logout e limpa os dados locais
-      // Em produção, isso seria feito pelo backend após deletar o registro
-      logout();
-      
-      // Limpa todos os dados do localStorage
-      if (typeof window !== 'undefined') {
-        localStorage.clear();
-      }
+      // Deleta a conta no banco de dados e faz logout
+      await deleteAccount();
       
       // Redireciona para login
       router.push('/login');
       soundManager.playSuccess();
     } catch (error) {
       console.error('Erro ao apagar conta:', error);
+      setErrors({ general: "Erro ao apagar conta. Tente novamente." });
     } finally {
       setIsDeletingAccount(false);
       setIsDeleteAccountModalOpen(false);

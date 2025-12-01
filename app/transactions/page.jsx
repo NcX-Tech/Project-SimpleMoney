@@ -22,6 +22,7 @@ import { Header } from "@/components/layout/Header";
 import { Navigation } from "@/components/layout/Navigation";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { Button } from "@/components/ui/Button";
 import { SuccessModal } from "@/components/ui/SuccessModal";
 import { useTransactionsStore, useGoalsStore, useDashboardStore } from "@/lib/store";
 import { soundManager } from "@/lib/sounds";
@@ -897,14 +898,20 @@ export default function TransactionsPage() {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     soundManager.playClick();
-                    removeTransaction(transactionToDelete.id);
-                    setIsDeleteModalOpen(false);
-                    setTransactionToDelete(null);
-                    setSuccessMessage("Transação removida com sucesso!");
-                    setIsSuccessModalOpen(true);
-                    soundManager.playSuccess();
+                    try {
+                      await removeTransaction(transactionToDelete.id);
+                      setIsDeleteModalOpen(false);
+                      setTransactionToDelete(null);
+                      setSuccessMessage("Transação removida com sucesso!");
+                      setIsSuccessModalOpen(true);
+                      soundManager.playSuccess();
+                    } catch (error) {
+                      console.error('Erro ao remover transação:', error);
+                      setSuccessMessage("Erro ao remover transação. Tente novamente.");
+                      setIsSuccessModalOpen(true);
+                    }
                   }}
                   variant="primary"
                   className="flex-1 bg-red-500 hover:bg-red-600"

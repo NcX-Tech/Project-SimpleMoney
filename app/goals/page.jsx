@@ -64,14 +64,19 @@ export default function GoalsPage() {
   /**
    * Confirma a exclusão da meta
    */
-  const handleConfirmDelete = () => {
+  const handleConfirmDelete = async () => {
     if (deleteGoalId) {
-      removeGoal(deleteGoalId)
-      soundManager.playSuccess()
-      setDeleteGoalId(null)
-      setIsDeleteModalOpen(false)
-      setIsSuccessModalOpen(true)
-      setSuccessMessage('Meta cancelada com sucesso!')
+      try {
+        await removeGoal(deleteGoalId)
+        soundManager.playSuccess()
+        setDeleteGoalId(null)
+        setIsDeleteModalOpen(false)
+        setIsSuccessModalOpen(true)
+        setSuccessMessage('Meta cancelada com sucesso!')
+      } catch (error) {
+        console.error('Erro ao remover meta:', error)
+        alert('Erro ao remover meta. Tente novamente.')
+      }
     }
   }
 

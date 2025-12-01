@@ -721,16 +721,21 @@ export default function SummaryPage() {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     if (!deleteReason.trim()) {
                       return;
                     }
                     soundManager.playClick();
-                    removeTransaction(transactionToDelete.id);
-                    setIsDeleteModalOpen(false);
-                    setTransactionToDelete(null);
-                    setDeleteReason("");
-                    soundManager.playSuccess();
+                    try {
+                      await removeTransaction(transactionToDelete.id);
+                      setIsDeleteModalOpen(false);
+                      setTransactionToDelete(null);
+                      setDeleteReason("");
+                      soundManager.playSuccess();
+                    } catch (error) {
+                      console.error('Erro ao remover transação:', error);
+                      alert("Erro ao remover transação. Tente novamente.");
+                    }
                   }}
                   variant="primary"
                   className="flex-1 bg-red-500 hover:bg-red-600"

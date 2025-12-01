@@ -588,14 +588,20 @@ export default function HomePage() {
                   Cancelar
                 </Button>
                 <Button
-                  onClick={() => {
+                  onClick={async () => {
                     soundManager.playClick()
-                    removeTransaction(transactionToDelete.id)
-                    setIsDeleteModalOpen(false)
-                    setTransactionToDelete(null)
-                    setSuccessMessage('Transação removida com sucesso!')
-                    setIsSuccessModalOpen(true)
-                    soundManager.playSuccess()
+                    try {
+                      await removeTransaction(transactionToDelete.id)
+                      setIsDeleteModalOpen(false)
+                      setTransactionToDelete(null)
+                      setSuccessMessage('Transação removida com sucesso!')
+                      setIsSuccessModalOpen(true)
+                      soundManager.playSuccess()
+                    } catch (error) {
+                      console.error('Erro ao remover transação:', error)
+                      setSuccessMessage('Erro ao remover transação. Tente novamente.')
+                      setIsSuccessModalOpen(true)
+                    }
                   }}
                   variant="primary"
                   className="flex-1 bg-red-500 hover:bg-red-600"

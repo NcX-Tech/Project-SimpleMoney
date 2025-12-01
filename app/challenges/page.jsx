@@ -511,13 +511,21 @@ export default function ChallengesPage() {
                         {/* Botão de desistir */}
                         {!challenge.completed && (
                           <button
-                            onClick={() => {
+                            onClick={async () => {
                               soundManager.playClick();
-                              abandonChallenge(challenge.id);
-                              setSuccessMessage(
-                                `Desafio "${challenge.title}" abandonado.`
-                              );
-                              setIsSuccessModalOpen(true);
+                              try {
+                                await abandonChallenge(challenge.id);
+                                setSuccessMessage(
+                                  `Desafio "${challenge.title}" abandonado.`
+                                );
+                                setIsSuccessModalOpen(true);
+                                // Recarrega os desafios
+                                await loadChallenges();
+                              } catch (error) {
+                                console.error('Erro ao abandonar desafio:', error);
+                                setSuccessMessage('Erro ao abandonar desafio. Tente novamente.');
+                                setIsSuccessModalOpen(true);
+                              }
                             }}
                             className="w-full mt-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white rounded-lg font-medium transition-colors flex items-center justify-center gap-2"
                           >
