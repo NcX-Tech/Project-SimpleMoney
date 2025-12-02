@@ -127,3 +127,6 @@ O projeto foi desenvolvido priorizando Desktop, mas é totalmente responsivo par
 ## 📄 Licença
 
 MIT License - veja o arquivo LICENSE para mais detalhes.
+
+---
+**Última atualização:** Dezembro 2025
