@@ -94,6 +94,26 @@ O projeto utiliza:
 - **Tanstack Query** para gerenciamento de dados do servidor
 - **Next.js App Router** para roteamento
 
+### Variáveis de Ambiente
+
+Crie um arquivo `.env.local` na raiz do projeto com as seguintes variáveis:
+
+```env
+# Configurações do Supabase
+NEXT_PUBLIC_SUPABASE_URL=https://seu-projeto.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=sua-chave-anon-key
+SUPABASE_SERVICE_ROLE_KEY=sua-chave-service-role
+
+# URL base da aplicação (usada para redirecionamentos OAuth)
+# Para desenvolvimento local, use: http://localhost:3000
+# Para produção, use a URL do seu domínio: https://seu-dominio.com
+NEXT_PUBLIC_SITE_URL=http://localhost:3000
+```
+
+**Importante:** A variável `NEXT_PUBLIC_SITE_URL` é usada para configurar a URL de redirecionamento do OAuth (login com Google). Certifique-se de que:
+1. Esta URL corresponde à URL onde sua aplicação está rodando
+2. A mesma URL está configurada no painel do Supabase em **Authentication > URL Configuration > Redirect URLs**
+
 ## 📱 Responsividade
 
 O projeto foi desenvolvido priorizando Desktop, mas é totalmente responsivo para dispositivos móveis, utilizando as classes do Tailwind CSS com breakpoints (`sm:`, `md:`, `lg:`).
