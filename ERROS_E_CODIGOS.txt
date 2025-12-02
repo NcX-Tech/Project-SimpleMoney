@@ -45,7 +45,7 @@ significados.
    Significado: Nenhum registro encontrado (usado para verificar se usuário existe)
    Onde ocorre: lib/store.js (função handleOAuthCallback)
    Solução: Normal - indica que o usuário não existe e precisa ser criado
-   Tratamento: Criação automática de novo usuário
+   Tratamento: Criação automática de novo
 
 2.2. 42501 - Permissão negada (RLS)
    Código: 42501
